@@ -1,5 +1,5 @@
 """
-Klasy OOP dla projektu ML - Online Shoppers Intention
+Klasy OOP
 """
 import pandas as pd
 import numpy as np
@@ -12,6 +12,25 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix, roc_curve, classification_report
+from collections import Counter
+
+
+def check_and_handle_imbalance(y_train, threshold=0.8):
+    """
+    Sprawdza niezbalansowanie klas i zwraca odpowiednie parametry
+    
+    """
+    class_counts = Counter(y_train)
+    if len(class_counts) != 2:
+        return {}
+    
+    counts = list(class_counts.values())
+    imbalance_ratio = min(counts) / max(counts)
+    
+    # jesli stosunek mniejszy niz threshold to klasy sa niezbalansowane
+    if imbalance_ratio < threshold:
+        return {'class_weight': 'balanced'}
+    return {}
 
 
 class DataLoader:
@@ -23,8 +42,8 @@ class DataLoader:
     
     def load_data(self, path: str) -> pd.DataFrame:
         """
-        Wczytuje dane z pliku CSV
-        
+        Wczytuje dane z pliku CSV.
+
         """
         try:
             self.data = pd.read_csv(path)
@@ -32,6 +51,9 @@ class DataLoader:
             print(f"Dane wczytane pomyślnie z: {path}")
             print(f"Kształt danych: {self.data.shape}")
             return self.data
+        except FileNotFoundError:
+            print(f"Błąd: Plik nie został znaleziony: {path}")
+            return None
         except Exception as e:
             print(f"Błąd podczas wczytania danych: {e}")
             return None
@@ -64,8 +86,12 @@ class DataPreprocessor:
     
     def handle_missing_values(self, df: pd.DataFrame, strategy: str = 'drop') -> pd.DataFrame:
         """
-        Obsługuje brakujące wartości
+        Obsługuje brakujące wartości w danych.
         
+       Strategia obsługi braków ('drop' lub 'mean')
+                - 'drop': Usuwa wiersze z brakującymi wartościami
+                - 'mean': Wypełnia średnią (tylko kolumny numeryczne)
+                
         """
         df_processed = df.copy()
         
@@ -74,29 +100,29 @@ class DataPreprocessor:
         elif strategy == 'mean':
             numeric_cols = df_processed.select_dtypes(include=[np.number]).columns
             df_processed[numeric_cols] = df_processed[numeric_cols].fillna(df_processed[numeric_cols].mean())
-        elif strategy == 'median':
-            numeric_cols = df_processed.select_dtypes(include=[np.number]).columns
-            df_processed[numeric_cols] = df_processed[numeric_cols].fillna(df_processed[numeric_cols].median())
-        elif strategy == 'mode':
-            for col in df_processed.columns:
-                df_processed[col] = df_processed[col].fillna(df_processed[col].mode()[0] if not df_processed[col].mode().empty else 0)
+        else:
+            raise ValueError(f"Nieznana strategia: {strategy}. Wybierz: 'drop' lub 'mean'")
         
         return df_processed
     
     def encode_categorical(self, df: pd.DataFrame, columns: list = None, method: str = 'label') -> pd.DataFrame:
         """
-        Koduje zmienne kategoryczne
+        Koduje zmienne kategoryczne na numeryczne.
         
+        Metoda kodowania ('label' lub 'onehot')
+                - 'label': Label Encoding (zamiana na liczby)
+                - 'onehot': One-Hot Encoding (tworzenie kolumn binarnych)
+                
         """
         df_encoded = df.copy()
         
         if columns is None:
-            # Automatyczne wykrycie kolumn kategorycznych
             categorical_cols = df_encoded.select_dtypes(include=['object', 'bool']).columns.tolist()
         else:
             categorical_cols = columns
         
         if method == 'label':
+            # zapisujemy encodery zeby moc pozniej zakodowac nowe dane
             for col in categorical_cols:
                 if col in df_encoded.columns:
                     le = LabelEncoder()
@@ -104,12 +130,14 @@ class DataPreprocessor:
                     self.label_encoders[col] = le
         elif method == 'onehot':
             df_encoded = pd.get_dummies(df_encoded, columns=categorical_cols, prefix=categorical_cols)
+        else:
+            raise ValueError(f"Nieznana metoda kodowania: {method}. Wybierz: 'label' lub 'onehot'")
         
         return df_encoded
     
     def normalize_features(self, df: pd.DataFrame, columns: list = None, fit: bool = True) -> pd.DataFrame:
         """
-        Normalizuje zmienne numeryczne
+        Normalizuje zmienne numeryczne używając StandardScaler (średnia=0, std=1).
         
         """
         df_normalized = df.copy()
@@ -120,46 +148,41 @@ class DataPreprocessor:
             numeric_cols = columns
         
         if fit:
+            # fit_transform dla danych treningowych - uczy parametry i transformuje
             df_normalized[numeric_cols] = self.scaler.fit_transform(df_normalized[numeric_cols])
             self.is_fitted = True
         else:
+            # transform dla danych testowych - uzywa juz nauczonych parametrow
             if not self.is_fitted:
                 raise ValueError("Scaler nie został dopasowany. Użyj fit=True dla danych treningowych.")
             df_normalized[numeric_cols] = self.scaler.transform(df_normalized[numeric_cols])
         
         return df_normalized
     
-    def preprocess_pipeline(self, df: pd.DataFrame, target_col: str = None, 
-                           handle_missing: str = 'drop', encode_method: str = 'label',
+    def preprocess_pipeline(self, df: pd.DataFrame, target_col: str, 
                            normalize: bool = True, fit: bool = True) -> tuple:
         """
-        Pełny pipeline preprocessingu
+        Pełny pipeline preprocessingu z domyślnymi ustawieniami.
+        
+        Wykonuje kolejno: obsługę braków -> kodowanie kategorycznych -> normalizację.
         
         """
         df_processed = df.copy()
+        df_processed = self.handle_missing_values(df_processed, strategy='drop')
         
-        # Obsługa brakujących wartości
-        df_processed = self.handle_missing_values(df_processed, strategy=handle_missing)
+        # oddzielamy target od features
+        if target_col not in df_processed.columns:
+            raise ValueError(f"Kolumna '{target_col}' nie istnieje w danych")
+        y = df_processed[target_col].copy()
+        X = df_processed.drop(columns=[target_col])
         
-        # Separacja targetu jeśli podany
-        if target_col and target_col in df_processed.columns:
-            y = df_processed[target_col].copy()
-            X = df_processed.drop(columns=[target_col])
-        else:
-            X = df_processed
-            y = None
+        # kodowanie kategorycznych przed normalizacja
+        X = self.encode_categorical(X, method='label')
         
-        # Kodowanie kategorycznych
-        X = self.encode_categorical(X, method=encode_method)
-        
-        # Normalizacja
         if normalize:
             X = self.normalize_features(X, fit=fit)
         
-        if y is not None:
-            return X, y
-        else:
-            return X, None
+        return (X, y)
 
 
 class DataAnalyzer:
@@ -175,67 +198,28 @@ class DataAnalyzer:
         """
         return df.describe()
     
-    def correlation_analysis(self, df: pd.DataFrame, target: str = None) -> pd.DataFrame:
+    def correlation_analysis(self, df: pd.DataFrame, target: str) -> pd.Series:
         """
-        Analiza korelacji
+        Analiza korelacji zmiennych z targetem.
         
         """
         df_processed = df.copy()
-        
-        # Wybierz tylko kolumny numeryczne
         numeric_df = df_processed.select_dtypes(include=[np.number])
         
-        # Jeśli target jest podany i nie jest numeryczny, zakoduj go
-        if target and target in df_processed.columns:
-            if target not in numeric_df.columns:
-                # Target jest kategoryczny - zakoduj go
-                from sklearn.preprocessing import LabelEncoder
-                le = LabelEncoder()
-                df_processed[target] = le.fit_transform(df_processed[target].astype(str))
-                # Ponownie wybierz numeryczne (teraz target jest numeryczny)
-                numeric_df = df_processed.select_dtypes(include=[np.number])
+        # jesli target nie jest numeryczny to kodujemy go zeby policzyc korelacje
+        if target not in numeric_df.columns:
+            if target not in df_processed.columns:
+                raise ValueError(f"Kolumna '{target}' nie istnieje w danych")
+            from sklearn.preprocessing import LabelEncoder
+            le = LabelEncoder()
+            df_processed[target] = le.fit_transform(df_processed[target].astype(str))
+            numeric_df = df_processed.select_dtypes(include=[np.number])
         
-        # Jeśli target jest podany, zwróć korelacje z targetem
-        if target and target in numeric_df.columns:
-            correlations = numeric_df.corr()[target].sort_values(ascending=False)
-            return correlations
-        else:
-            # Zwróć pełną macierz korelacji tylko dla kolumn numerycznych
-            return numeric_df.corr()
-    
-    def visualize_distributions(self, df: pd.DataFrame, columns: list = None, figsize: tuple = (15, 10), metadata: dict = None):
-        """
-        Wizualizuje rozkłady zmiennych numerycznych
+        if target not in numeric_df.columns:
+            raise ValueError(f"Kolumna '{target}' nie jest numeryczna i nie można jej zakodować")
         
-        """
-        if columns is None:
-            numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        else:
-            numeric_cols = columns
-        
-        n_cols = len(numeric_cols)
-        n_rows = (n_cols + 2) // 3
-        
-        fig, axes = plt.subplots(n_rows, 3, figsize=figsize)
-        axes = axes.flatten() if n_rows > 1 else [axes] if n_cols == 1 else axes
-        
-        for idx, col in enumerate(numeric_cols):
-            if idx < len(axes):
-                df[col].hist(bins=30, ax=axes[idx], edgecolor='black')
-                axes[idx].set_title(f'Rozkład {col}')
-                # Dodaj jednostkę do etykiety osi X jeśli metadata jest dostępne
-                if metadata and col in metadata:
-                    axes[idx].set_xlabel(f'{col} ({metadata[col]})')
-                else:
-                    axes[idx].set_xlabel(col)
-                axes[idx].set_ylabel('Częstość')
-        
-        # Ukryj puste subploty
-        for idx in range(len(numeric_cols), len(axes)):
-            axes[idx].set_visible(False)
-        
-        plt.tight_layout()
-        plt.show()
+        correlations = numeric_df.corr()[target].sort_values(ascending=False)
+        return correlations
     
     def visualize_correlations(self, df: pd.DataFrame, figsize: tuple = (12, 10)):
         """
@@ -266,7 +250,6 @@ class DataAnalyzer:
             "is_balanced": (percentages.min() > 40) and (percentages.max() < 60)
         }
         
-        # Wizualizacja
         plt.figure(figsize=(8, 5))
         value_counts.plot(kind='bar', color=['skyblue', 'salmon'])
         plt.title('Rozkład klas docelowych')
@@ -279,6 +262,59 @@ class DataAnalyzer:
         plt.show()
         
         return analysis
+    
+    def visualize_distributions(self, df: pd.DataFrame, columns: list = None, 
+                                metadata: dict = None, figsize: tuple = (15, 10)):
+        """
+        Wizualizuje rozkłady wybranych zmiennych numerycznych.
+        
+        """
+        if columns is None:
+            columns = df.select_dtypes(include=[np.number]).columns.tolist()
+        
+        columns = [col for col in columns if col in df.columns]
+        
+        if not columns:
+            print("Brak kolumn numerycznych do wizualizacji")
+            return
+        
+        n_cols = 3
+        n_rows = (len(columns) + n_cols - 1) // n_cols
+        
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
+        # matplotlib zwraca rozne typy w zaleznosci od liczby subplotow, trzeba to ujednolicic
+        if n_rows == 1 and n_cols == 1:
+            axes = [axes]
+        elif n_rows == 1:
+            axes = axes if isinstance(axes, np.ndarray) else [axes]
+        else:
+            axes = axes.flatten()
+        
+        for idx, col in enumerate(columns):
+            ax = axes[idx]
+            
+            if 'Revenue' in df.columns and col != 'Revenue':
+                for revenue_value in df['Revenue'].unique():
+                    subset = df[df['Revenue'] == revenue_value][col]
+                    label = 'Purchase' if revenue_value else 'No Purchase'
+                    ax.hist(subset, alpha=0.6, label=label, bins=30)
+                ax.legend()
+            else:
+                ax.hist(df[col].dropna(), bins=30, alpha=0.7, color='steelblue')
+            
+            title = col
+            if metadata and col in metadata:
+                title += f" ({metadata[col]})"
+            ax.set_title(title)
+            ax.set_xlabel(col)
+            ax.set_ylabel('Częstość')
+            ax.grid(alpha=0.3)
+        
+        for idx in range(len(columns), len(axes)):
+            axes[idx].set_visible(False)
+        
+        plt.tight_layout()
+        plt.show()
 
 
 class FeatureEngineer:
@@ -294,13 +330,11 @@ class FeatureEngineer:
         """
         df_new = df.copy()
         
-        # TotalPages = suma wszystkich stron
         if all(col in df_new.columns for col in ['Administrative', 'Informational', 'ProductRelated']):
             df_new['TotalPages'] = (df_new['Administrative'] + 
                                    df_new['Informational'] + 
                                    df_new['ProductRelated'])
         
-        # TotalDuration = suma wszystkich czasów
         if all(col in df_new.columns for col in ['Administrative_Duration', 
                                                   'Informational_Duration', 
                                                   'ProductRelated_Duration']):
@@ -308,45 +342,32 @@ class FeatureEngineer:
                                        df_new['Informational_Duration'] + 
                                        df_new['ProductRelated_Duration'])
         
-        # AvgPageDuration = średni czas na stronę
         if 'TotalDuration' in df_new.columns and 'TotalPages' in df_new.columns:
+            # 1e-6 zeby uniknac dzielenia przez zero
             df_new['AvgPageDuration'] = df_new['TotalDuration'] / (df_new['TotalPages'] + 1e-6)
         
-        # BounceExitRatio = stosunek bounce do exit
         if all(col in df_new.columns for col in ['BounceRates', 'ExitRates']):
             df_new['BounceExitRatio'] = df_new['BounceRates'] / (df_new['ExitRates'] + 1e-6)
         
-        # ProductRelatedRatio = stosunek stron produktowych do wszystkich
         if 'ProductRelated' in df_new.columns and 'TotalPages' in df_new.columns:
             df_new['ProductRelatedRatio'] = df_new['ProductRelated'] / (df_new['TotalPages'] + 1e-6)
         
         return df_new
     
-    def create_aggregated_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Tworzy cechy zagregowane
-        
-        """
-        df_new = df.copy()
-        
-        # Można dodać więcej cech zagregowanych tutaj
-        # Na przykład: średnie, mediany, itp.
-        
-        return df_new
-    
     def select_features(self, X: pd.DataFrame, y: pd.Series, 
-                       method: str = 'correlation', threshold: float = 0.01) -> tuple:
+                       method: str = 'importance', threshold: float = 0.01) -> tuple:
         """
         Selekcja zmiennych
         
         """
         if method == 'correlation':
+            # wybieramy cechy z korelacja powyzej progu
             correlations = X.corrwith(y).abs()
             selected_features = correlations[correlations >= threshold].index.tolist()
             X_selected = X[selected_features]
         
         elif method == 'importance':
-            # Użyj Random Forest do określenia ważności cech
+            # rf uczy sie na wszystkich cechach i zwraca ich waznosc
             rf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
             rf.fit(X, y)
             
@@ -355,7 +376,7 @@ class FeatureEngineer:
             
             selected_features = feature_importance[feature_importance >= threshold].index.tolist()
             X_selected = X[selected_features]
-        
+    
         else:
             X_selected = X
             selected_features = X.columns.tolist()
@@ -370,38 +391,22 @@ class ModelTrainer:
         self.models = {}
         self.results = {}
     
-    def _check_class_imbalance(self, y_train, threshold: float = 0.8):
-        """
-        Pomocnicza metoda do sprawdzania niezbalansowania klas
-        
-        """
-        from collections import Counter
-        class_counts = Counter(y_train)
-        if len(class_counts) != 2:
-            return False, class_counts, None
-        
-        counts = list(class_counts.values())
-        imbalance_ratio = min(counts) / max(counts)
-        is_imbalanced = imbalance_ratio < threshold
-        
-        return is_imbalanced, class_counts, imbalance_ratio
-    
     def train_model(self, X_train, y_train, model_type: str, 
                    handle_imbalance: bool = True, **kwargs):
         """
-        Trenuje model
-        
+        Trenuje model klasyfikacji.
+    
         """
-        # Sprawdź balans klas jeśli handle_imbalance=True
+        # automatyczna obsługa niezbalansowanych klas
         if handle_imbalance:
-            is_imbalanced, class_counts, imbalance_ratio = self._check_class_imbalance(y_train)
-            
-            if is_imbalanced:
+            imbalance_params = check_and_handle_imbalance(y_train)
+            if imbalance_params:
+                class_counts = Counter(y_train)
                 print(f"Wykryto niezbalansowanie klas: {class_counts}")
-                # Dodaj class_weight='balanced' jeśli nie jest już w kwargs
-                if 'class_weight' not in kwargs:
-                    kwargs['class_weight'] = 'balanced'
-                    print("Stosowanie class_weight='balanced'")
+                for key, value in imbalance_params.items():
+                    if key not in kwargs:
+                        kwargs[key] = value
+                        print(f"Stosowanie {key}='{value}'")
         
         if model_type == 'logistic':
             model = LogisticRegression(random_state=42, max_iter=1000, **kwargs)
@@ -409,21 +414,6 @@ class ModelTrainer:
             model = RandomForestClassifier(random_state=42, n_jobs=-1, **kwargs)
         elif model_type == 'svm':
             model = SVC(random_state=42, probability=True, **kwargs)
-        elif model_type == 'xgboost':
-            try:
-                import xgboost as xgb
-                # XGBoost używa scale_pos_weight zamiast class_weight
-                if handle_imbalance and 'scale_pos_weight' not in kwargs:
-                    is_imbalanced, class_counts, _ = self._check_class_imbalance(y_train)
-                    if is_imbalanced and len(class_counts) == 2:
-                        counts = list(class_counts.values())
-                        scale_pos_weight = counts[0] / counts[1]  # negatywna / pozytywna
-                        kwargs['scale_pos_weight'] = scale_pos_weight
-                        print(f"XGBoost: scale_pos_weight={scale_pos_weight:.2f}")
-                model = xgb.XGBClassifier(random_state=42, **kwargs)
-            except ImportError:
-                print("XGBoost nie jest zainstalowany. Używam Random Forest zamiast tego.")
-                model = RandomForestClassifier(random_state=42, n_jobs=-1, **kwargs)
         else:
             raise ValueError(f"Nieznany typ modelu: {model_type}")
         
@@ -434,17 +424,15 @@ class ModelTrainer:
     
     def evaluate_model(self, model, X_test, y_test) -> dict:
         """
-        Ewaluuje model (obsługuje zarówno zwykłe modele jak i Pipeline)
-       
+        Ewaluuje model i zwraca metryki wydajności.
+         
         """
-        # Pipeline automatycznie zastosuje skalowanie podczas predict
         y_pred = model.predict(X_test)
         
-        # Sprawdź czy model ma predict_proba (obsługuje Pipeline)
+        # pipeline ma predict_proba przez nested model, trzeba to sprawdzic
         if hasattr(model, 'predict_proba'):
             y_pred_proba = model.predict_proba(X_test)[:, 1]
         elif hasattr(model, 'named_steps') and hasattr(model.named_steps['model'], 'predict_proba'):
-            # Pipeline z modelem mającym predict_proba
             y_pred_proba = model.predict_proba(X_test)[:, 1]
         else:
             y_pred_proba = None
@@ -462,7 +450,7 @@ class ModelTrainer:
     
     def compare_models(self, models: dict, X_test, y_test) -> pd.DataFrame:
         """
-        Porównuje wiele modeli
+        Porównuje wiele modeli i zwraca DataFrame z metrykami.
         
         """
         results = []
@@ -485,37 +473,30 @@ class HyperparameterTuner:
         self.best_params = {}
         self.best_scores = {}
     
+    def _create_pipeline(self, model):
+        """Tworzy Pipeline ze StandardScaler i modelem"""
+        return Pipeline([
+            ('scaler', StandardScaler()),
+            ('model', model)
+        ])
+    
     def grid_search(self, model, param_grid: dict, X_train, y_train, 
                    cv: int = 5, scoring: str = 'f1', n_jobs: int = -1,
                    handle_imbalance: bool = True):
         """
-        Grid Search dla optymalizacji hiperparametrów z użyciem Pipeline
-        
-        Tworzy Pipeline składający się ze StandardScaler i modelu, dzięki czemu
-        skalowanie odbywa się osobno dla każdego foldu walidacji krzyżowej
-        (uniknięcie data leakage).
+        Grid Search dla optymalizacji hiperparametrów z użyciem Pipeline.
         
         """
-        # Sprawdź balans klas i dodaj class_weight jeśli potrzebne
+        # pipeline wymaga prefixu 'model__' dla parametrow wewnetrznego modelu
         if handle_imbalance:
-            from collections import Counter
-            class_counts = Counter(y_train)
-            if len(class_counts) == 2:
-                counts = list(class_counts.values())
-                imbalance_ratio = min(counts) / max(counts)
-                if imbalance_ratio < 0.8:
-                    # Dodaj class_weight='balanced' jeśli nie ma w param_grid
-                    if 'model__class_weight' not in param_grid:
-                        # Ustaw domyślnie 'balanced' dla modelu
-                        if hasattr(model, 'set_params'):
-                            model.set_params(class_weight='balanced')
-                        print("Dodano class_weight='balanced' do modelu w Pipeline")
+            imbalance_params = check_and_handle_imbalance(y_train)
+            if imbalance_params:
+                if 'model__class_weight' not in param_grid:
+                    if hasattr(model, 'set_params'):
+                        model.set_params(class_weight='balanced')
+                    print("Dodano class_weight='balanced' do modelu w Pipeline")
         
-        # Tworzenie Pipeline ze StandardScaler i modelem
-        pipeline = Pipeline([
-            ('scaler', StandardScaler()),
-            ('model', model)
-        ])
+        pipeline = self._create_pipeline(model)
         
         grid_search = GridSearchCV(
             pipeline, 
@@ -539,18 +520,10 @@ class HyperparameterTuner:
     def random_search(self, model, param_distributions: dict, X_train, y_train,
                      n_iter: int = 50, cv: int = 5, scoring: str = 'f1', n_jobs: int = -1):
         """
-        Random Search dla optymalizacji hiperparametrów z użyciem Pipeline
-        
-        Tworzy Pipeline składający się ze StandardScaler i modelu, dzięki czemu
-        skalowanie odbywa się osobno dla każdego foldu walidacji krzyżowej
-        (uniknięcie data leakage).
+        Random Search dla optymalizacji hiperparametrów z użyciem Pipeline.
         
         """
-        # Tworzenie Pipeline ze StandardScaler i modelem
-        pipeline = Pipeline([
-            ('scaler', StandardScaler()),
-            ('model', model)
-        ])
+        pipeline = self._create_pipeline(model)
         
         random_search = RandomizedSearchCV(
             pipeline,

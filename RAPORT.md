@@ -114,7 +114,7 @@ ProductRelated_Duration (0,15) – dłuższy czas na stronach produktów zwięks
 ### Selekcja zmiennych
 - **Metoda**: Feature Importance (Random Forest)
 - **Próg**: 0.01
-- **Liczba wybranych cech**: 11
+- **Liczba wybranych cech**: 19
 - **Uzasadnienie**: Random Forest pozwala na określenie ważności cech, co pomaga w usunięciu zmiennych o niskiej wartości predykcyjnej
 
 ## 6. Modelowanie
@@ -155,43 +155,43 @@ ProductRelated_Duration (0,15) – dłuższy czas na stronach produktów zwięks
 
 ### Metryki najlepszego modelu (Random Forest - Tuned)
 
-- **Accuracy**: [0.9015]
-- **Precision**: [0.7704]
-- **Recall**: [0.5183]
-- **F1-score**: [0.6197]
-- **ROC-AUC**: [0.9118]
+- **Accuracy**: 0.8925
+- **Precision**: 0.6370
+- **Recall**: 0.7120
+- **F1-score**: 0.6724
+- **ROC-AUC**: 0.9174
 
 ### Analiza Confusion Matrix
 
 | | Przewidziano: No Purchase | Przewidziano: Purchase |
 |--|-------------------------|----------------------|
-| **Rzeczywistość: No Purchase** | TN: [2025] | FP: [59] |
-| **Rzeczywistość: Purchase** | FN: [184] | TP: [198] |
+| **Rzeczywistość: No Purchase** | TN: 1929 | FP: 155 |
+| **Rzeczywistość: Purchase** | FN: 110 | TP: 272 |
 
 **Interpretacja**:
-- **True Positives (TP)**: [198] - Poprawnie przewidziane zakupy
-- **False Positives (FP)**: [59] - Błędnie przewidziane zakupy (użytkownik nie kupił)
-- **False Negatives (FN)**: [184] - Przeoczone zakupy (użytkownik kupił, ale model nie przewidział)
-- **True Negatives (TN)**: [2025] - Poprawnie przewidziane braki zakupów
+- **True Positives (TP)**: 272 - Poprawnie przewidziane zakupy
+- **False Positives (FP)**: 155 - Błędnie przewidziane zakupy (użytkownik nie kupił)
+- **False Negatives (FN)**: 110 - Przeoczone zakupy (użytkownik kupił, ale model nie przewidział)
+- **True Negatives (TN)**: 1929 - Poprawnie przewidziane braki zakupów
 
 ### Wnioski z ROC Curve
-- **AUC Score**: [0.9118]
+- **AUC Score**: 0.9174
 - **Interpretacja**: Wynik powyżej 0.9 oznacza bardzo wysoką zdolność klasyfikatora do rozróżniania między użytkownikami dokonującymi zakupu a tymi, którzy tylko przeglądają stronę. Model radzi sobie znacznie lepiej niż klasyfikator losowy.
 
 ### Cross-Validation Results
-- **Średni F1-score (5-fold CV)**: [0.6150] (+/- [0.04])
+- **Średni F1-score (5-fold CV)**: 0.6891 (+/- 0.0265)
 - **Interpretacja**: Model wykazuje stabilność wyników na różnych podzbiorach danych. Nie zaobserwowano gwałtownych wahań metryki F1, co świadczy o dobrej generalizacji.
 
 ## 8. Konkluzja
 
 ### Podsumowanie wyników
-Model Random Forest okazał się najbardziej skutecznym algorytmem spośród testowanych (Logistic Regression, SVM, RF). Osiągnął wysoką ogólną dokładność (ponad 90%) oraz bardzo solidny wynik AUC. Największą zaletą modelu jest wysoka precyzja (77%), co oznacza, że rzadko "myli się" przewidując zakup. Słabszą stroną jest Recall (51,8%), co wskazuje, że model wciąż pomija niemal połowę użytkowników faktycznie dokonujących transakcji.
+Model Random Forest okazał się najbardziej skutecznym algorytmem spośród testowanych (Logistic Regression, SVM, RF). Po optymalizacji hiperparametrów osiągnął wysoką ogólną dokładność (89,25%) oraz bardzo solidny wynik AUC (0,9174). Model wykazuje dobry balans między precyzją (63,7%) a recall (71,2%), osiągając F1-score na poziomie 67,24%. W porównaniu do wersji przed tuningiem, model zoptymalizowany ma wyższy recall (71,2% vs 51,8%), co oznacza, że lepiej wykrywa użytkowników faktycznie dokonujących zakupów, kosztem nieco niższej precyzji.
 
 ### Analiza błędów
-1. **False Positives**: [59] - Model przewiduje zakup, ale użytkownik nie kupił
+1. **False Positives**: 155 - Model przewiduje zakup, ale użytkownik nie kupił
    - **Możliwe przyczyny**: Użytkownicy spędzający bardzo dużo czasu na stronach produktów i mający wysoki PageValues, którzy w ostatniej chwili zrezygnowali z transakcji.
-   [
-2. **False Negatives**: [184] - Model nie przewiduje zakupu, ale użytkownik kupił
+
+2. **False Negatives**: 110 - Model nie przewiduje zakupu, ale użytkownik kupił
    - **Możliwe przyczyny**: "Szybcy kupujący" – użytkownicy, którzy od razu przechodzą do finalizacji zamówienia bez długiego przeglądania stron pomocniczych czy administracyjnych.
 
 

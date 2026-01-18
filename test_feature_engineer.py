@@ -48,12 +48,6 @@ class TestFeatureEngineer(unittest.TestCase):
         self.assertEqual(result['TotalPages'].iloc[0], 13)  # 1 + 2 + 10
         self.assertGreater(result['TotalDuration'].iloc[0], 0)
     
-    def test_create_aggregated_features(self):
-        """Test tworzenia cech zagregowanych"""
-        result = self.feature_engineer.create_aggregated_features(self.test_df)
-        self.assertIsInstance(result, pd.DataFrame)
-        self.assertEqual(result.shape[0], self.test_df.shape[0])
-    
     def test_select_features_correlation(self):
         """Test selekcji cech - metoda korelacji"""
         X_selected, selected_features = self.feature_engineer.select_features(

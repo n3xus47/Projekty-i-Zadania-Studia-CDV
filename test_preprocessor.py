@@ -69,8 +69,6 @@ class TestDataPreprocessor(unittest.TestCase):
         X, y = self.preprocessor.preprocess_pipeline(
             self.test_df,
             target_col='target',
-            handle_missing='mean',
-            encode_method='label',
             normalize=True,
             fit=True
         )
