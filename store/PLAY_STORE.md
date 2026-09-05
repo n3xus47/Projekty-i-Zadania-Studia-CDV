@@ -23,4 +23,6 @@ Nie zastępuje Wirtualnej Uczelni. Jest wygodną warstwą mobilną nad wu.cdv.pl
 
 **Data safety:** brak konta w chmurze autorów; dane logowania i plan tylko na urządzeniu; połączenie z wu.cdv.pl.
 
-Dopóki uczelnia nie hostuje polityki, recenzent widzi te same teksty w aplikacji (ekran logowania i ustawienia).
+**Polityka prywatności (Play):** https://n3xus47.github.io/cdv-dzis-legal/privacy-policy.html  
+**Regulamin:** https://n3xus47.github.io/cdv-dzis-legal/terms.html  
+**Usuwanie danych:** https://n3xus47.github.io/cdv-dzis-legal/account-deletion.html

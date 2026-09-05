@@ -61,9 +61,9 @@
       ]
     ],
     "extra": {
-      "privacyPolicyUrl": "",
-      "termsUrl": "",
-      "accountDeletionUrl": ""
+      "privacyPolicyUrl": "https://n3xus47.github.io/cdv-dzis-legal/privacy-policy.html",
+      "termsUrl": "https://n3xus47.github.io/cdv-dzis-legal/terms.html",
+      "accountDeletionUrl": "https://n3xus47.github.io/cdv-dzis-legal/account-deletion.html"
     }
   }
 }

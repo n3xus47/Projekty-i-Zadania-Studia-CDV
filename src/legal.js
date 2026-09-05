@@ -1,8 +1,8 @@
 export const LEGAL_URLS = {
-  privacy: '',
-  terms: '',
-  accountDeletion: '',
-  issues: ''
+  privacy: 'https://n3xus47.github.io/cdv-dzis-legal/privacy-policy.html',
+  terms: 'https://n3xus47.github.io/cdv-dzis-legal/terms.html',
+  accountDeletion: 'https://n3xus47.github.io/cdv-dzis-legal/account-deletion.html',
+  issues: 'https://github.com/n3xus47/cdv-dzis/issues'
 };
 
 export const LEGAL_DOCUMENTS = {

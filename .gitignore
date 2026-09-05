@@ -1,4 +1,5 @@
 node_modules/
+.idea/
 .tools/
 .expo/
 .expo-start*.log
