@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "CDV Dziś",
+    "slug": "cdv-dzis",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/app-icon.png",
+    "userInterfaceStyle": "automatic",
+    "description": "Oficjalna warstwa mobilna planu zajęć Collegium Da Vinci. Logowanie wyłącznie przez Wirtualną Uczelnię wu.cdv.pl. Dane zostają na telefonie.",
+    "splash": {
+      "image": "./assets/app-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d0618"
+    },
+    "assetBundlePatterns": [
+      "assets/**/*"
+    ],
+    "android": {
+      "package": "pl.cdv.dzis",
+      "versionCode": 1,
+      "allowBackup": false,
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app-icon.png",
+        "backgroundColor": "#0d0618"
+      },
+      "permissions": [
+        "INTERNET"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.READ_CONTACTS"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "pl.cdv.dzis",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false
+        },
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0",
+            "useLegacyPackaging": false
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "privacyPolicyUrl": "",
+      "termsUrl": "",
+      "accountDeletionUrl": ""
+    }
+  }
+}
