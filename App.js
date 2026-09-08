@@ -4491,32 +4491,6 @@ function createStyles(theme) {
       flexDirection: 'row',
       flexShrink: 1
     },
-    headerTitleSuffixSlot: {
-      position: 'relative'
-    },
-    headerTitleMeasure: {
-      color: 'transparent',
-      fontFamily: FONT.title,
-      fontSize: 24,
-      includeFontPadding: false,
-      lineHeight: 30,
-      margin: 0,
-      opacity: 0,
-      padding: 0
-    },
-    headerTitleSuffixClip: {
-      bottom: 0,
-      left: 0,
-      overflow: 'hidden',
-      position: 'absolute',
-      right: 0,
-      top: 0
-    },
-    headerTitleSuffixOverlay: {
-      left: 0,
-      position: 'absolute',
-      top: 0
-    },
     settingsButton: {
       flexShrink: 0,
       alignItems: 'center',

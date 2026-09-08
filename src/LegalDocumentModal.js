@@ -5,7 +5,7 @@ import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'r
 
 import { LEGAL_DOCUMENTS, LEGAL_URLS } from './legal';
 
-const BRAND_GRADIENT = ['#7b1cff', '#2575ff', '#19e6e6'];
+const BRAND_GRADIENT = ['#7a00df', '#a699fc', '#fb7153'];
 const BRAND_GRADIENT_START = { x: 0, y: 1 };
 const BRAND_GRADIENT_END = { x: 1, y: 0 };
 const BRAND_GRADIENT_TEXT = '#ffffff';
@@ -49,12 +49,14 @@ export function LegalDocumentModal({ documentKey, onClose, theme, visible }) {
             ))}
           </ScrollView>
 
-          <Pressable
-            onPress={() => Linking.openURL(webUrl).catch(() => {})}
-            style={modalStyles.linkButton}
-          >
-            <Text style={modalStyles.linkButtonText}>Otwórz w przeglądarce</Text>
-          </Pressable>
+          {webUrl ? (
+            <Pressable
+              onPress={() => Linking.openURL(webUrl).catch(() => {})}
+              style={modalStyles.linkButton}
+            >
+              <Text style={modalStyles.linkButtonText}>Otwórz w przeglądarce</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </Modal>

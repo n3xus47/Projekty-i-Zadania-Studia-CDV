@@ -48,7 +48,7 @@ export const LEGAL_DOCUMENTS = {
       },
       {
         heading: 'Zmiany',
-        body: 'Aktualną treść polityki znajdziesz w aplikacji. Data obowiązywania: 5 września 2026 r.'
+        body: 'Aktualną treść polityki znajdziesz w aplikacji oraz pod adresem https://n3xus47.github.io/cdv-dzis-legal/privacy-policy.html. Data obowiązywania: 5 września 2026 r.'
       }
     ]
   },

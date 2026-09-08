@@ -1,7 +1,7 @@
 # Google Play — CDV Dziś
 
 Pakiet: `pl.cdv.dzis`  
-Wersja: `1.0.0` (versionCode 1)
+Wersja: `1.0.1` (versionCode 2)
 
 Publikację w sklepie robić **dopiero po umowie z Collegium Da Vinci** i po wymianie tekstów „do czasu umowy”. Konto deweloperskie: uczelnia albo autorzy — zależnie od wariantu z oferty.
 
@@ -26,3 +26,18 @@ Nie zastępuje Wirtualnej Uczelni. Jest wygodną warstwą mobilną nad wu.cdv.pl
 **Polityka prywatności (Play):** https://n3xus47.github.io/cdv-dzis-legal/privacy-policy.html  
 **Regulamin:** https://n3xus47.github.io/cdv-dzis-legal/terms.html  
 **Usuwanie danych:** https://n3xus47.github.io/cdv-dzis-legal/account-deletion.html
+
+## Grafiki do Play Console
+
+Wszystkie pliki są w `store/` i spełniają limity sklepu.
+
+| Pole w Play | Plik | Wymiary |
+|---|---|---|
+| Ikona aplikacji | `play-icon-512.png` | 512×512, PNG, 191 KB |
+| Grafika funkcji | `feature-graphic.png` | 1024×500, PNG, 463 KB |
+| Zrzut 1 — logowanie | `screenshot-logowanie.png` | 1080×1920 (9:16) |
+| Zrzut 2 — plan | `screenshot-plan.png` | 1080×1920 (9:16) |
+| Zrzut 3 — ustawienia | `screenshot-ustawienia.png` | 1080×1920 (9:16) |
+| Zrzut 4 — Wirtualna Uczelnia | `screenshot-wu.png` | 1080×1920 (9:16) |
+
+Ikona jest w kolorystyce CDV (fiolet `#7a00df`, lawenda `#a699fc`, pomarańcz `#fb7153`, zieleń na chwostcie) — nie cyjan–fiolet CoMamDziś.
