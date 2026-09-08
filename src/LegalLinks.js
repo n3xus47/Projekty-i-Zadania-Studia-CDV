@@ -5,41 +5,56 @@ export function LegalLinks({ onOpenDeletion, onOpenPrivacy, onOpenTerms, theme }
   return (
     <View style={styles.wrap}>
       <Text style={[styles.text, { color: theme.mutedText }]}>
-        CDV Dziś jest aplikacją przygotowaną wyłącznie dla Collegium Da Vinci. Logując się, akceptujesz{' '}
-        <Text onPress={onOpenPrivacy} style={styles.link}>politykę prywatności</Text>
-        {' '}i{' '}
-        <Text onPress={onOpenTerms} style={styles.link}>regulamin</Text>
-        .
+        Tylko Collegium Da Vinci. Logując się akceptujesz politykę i regulamin.
       </Text>
-      {onOpenDeletion ? (
-        <Pressable onPress={onOpenDeletion} style={styles.deletionHit}>
-          <Text style={[styles.deletion, { color: theme.mutedText }]}>Jak usunąć dane z telefonu</Text>
+      <View style={styles.row}>
+        <Pressable hitSlop={6} onPress={onOpenPrivacy}>
+          <Text style={[styles.link, { color: theme.formFocus }]}>privacy.md</Text>
         </Pressable>
-      ) : null}
+        <Text style={[styles.sep, { color: theme.mutedText }]}>/</Text>
+        <Pressable hitSlop={6} onPress={onOpenTerms}>
+          <Text style={[styles.link, { color: theme.formFocus }]}>terms.md</Text>
+        </Pressable>
+        {onOpenDeletion ? (
+          <>
+            <Text style={[styles.sep, { color: theme.mutedText }]}>/</Text>
+            <Pressable hitSlop={6} onPress={onOpenDeletion}>
+              <Text style={[styles.link, { color: theme.formFocus }]}>wipe.md</Text>
+            </Pressable>
+          </>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: {
+    alignItems: 'center',
     marginTop: 20,
     paddingHorizontal: 4
   },
   text: {
+    fontFamily: 'Krub-Regular',
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center'
   },
+  row: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'center',
+    marginTop: 8
+  },
   link: {
-    textDecorationLine: 'underline'
-  },
-  deletionHit: {
-    alignSelf: 'center',
-    marginTop: 8,
-    padding: 4
-  },
-  deletion: {
+    fontFamily: 'monospace',
     fontSize: 12,
-    textDecorationLine: 'underline'
+    letterSpacing: 0.2
+  },
+  sep: {
+    fontFamily: 'monospace',
+    fontSize: 12
   }
 });

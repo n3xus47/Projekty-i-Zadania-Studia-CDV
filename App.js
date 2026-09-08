@@ -157,9 +157,10 @@ const PORTAL_SESSION_TTL_MS = 30 * 60 * 1000;
 const CDV_PORTAL_HOME_URL = 'https://wu.cdv.pl/?page=Main';
 const CDV_BLACKBOARD_BASE_URL = 'https://cdv.blackboard.com/auth-saml/saml/login?apId=_27_1&redirectUrl=https%3A%2F%2Fcdv.blackboard.com%2Fultra';
 const SECURE_STORE_TIMEOUT_MS = 5000;
-const APP_ICON = require('./assets/app-icon-white-transparent.png');
-const APP_ICON_WHITE = require('./assets/app-icon-white-transparent.png');
-const APP_ICON_BLACK = require('./assets/app-icon-black-transparent.png');
+const APP_ICON = require('./assets/app-icon.png');
+const APP_SPLASH_BG = '#0d0618';
+const THEME_TRANSITION_MS = 160;
+const THEME_TRANSITION_EASING = Easing.out(Easing.cubic);
 const APP_VERSION = appConfig?.expo?.version || '0.1.0';
 const CDV_LOGO = require('./assets/cdv-logo-white.png');
 const MERITO_LOGO = require('./assets/merito-logo.png');
@@ -263,12 +264,11 @@ function SavedProfileButton({ loading, onPress, onRemove, savedProfile, styles, 
   );
 }
 
-function SavedProfileLoadingScreen({ profile, styles, themeName }) {
+function AppSplashScreen({ profile }) {
   const dotOne = useRef(new Animated.Value(0)).current;
   const dotTwo = useRef(new Animated.Value(0)).current;
   const dotThree = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.92)).current;
-  const logoSource = themeName === 'dark' ? APP_ICON_WHITE : APP_ICON_BLACK;
 
   useEffect(() => {
     Animated.spring(logoScale, {
@@ -302,17 +302,17 @@ function SavedProfileLoadingScreen({ profile, styles, themeName }) {
   }, [dotOne, dotThree, dotTwo, logoScale]);
 
   return (
-    <View style={styles.profileLoadingScreen}>
-      <Animated.View style={[styles.profileLoadingLogoWrap, { transform: [{ scale: logoScale }] }]}>
-        <Image resizeMode="contain" source={logoSource} style={styles.profileLoadingLogo} />
+    <View style={appSplashStyles.screen}>
+      <Animated.View style={[appSplashStyles.logoWrap, { transform: [{ scale: logoScale }] }]}>
+        <Image resizeMode="contain" source={APP_ICON} style={appSplashStyles.logo} />
       </Animated.View>
-      {profile?.login ? <Text style={styles.profileLoadingLogin}>{profile.login}</Text> : null}
-      <View accessibilityLabel="Ładowanie" style={styles.profileLoadingDots}>
+      {profile?.login ? <Text style={appSplashStyles.login}>{profile.login}</Text> : null}
+      <View accessibilityLabel="Ładowanie" style={appSplashStyles.dots}>
         {[dotOne, dotTwo, dotThree].map((dot, index) => (
           <Animated.View
             key={index}
             style={[
-              styles.profileLoadingDot,
+              appSplashStyles.dot,
               {
                 opacity: dot,
                 transform: [{
@@ -328,7 +328,7 @@ function SavedProfileLoadingScreen({ profile, styles, themeName }) {
               colors={BRAND_GRADIENT}
               end={BRAND_GRADIENT_END}
               start={BRAND_GRADIENT_START}
-              style={styles.profileLoadingDotFill}
+              style={appSplashStyles.dotFill}
             />
           </Animated.View>
         ))}
@@ -336,6 +336,52 @@ function SavedProfileLoadingScreen({ profile, styles, themeName }) {
     </View>
   );
 }
+
+const appSplashStyles = StyleSheet.create({
+  screen: {
+    alignItems: 'center',
+    backgroundColor: APP_SPLASH_BG,
+    flex: 1,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    paddingHorizontal: 28
+  },
+  logoWrap: {
+    alignItems: 'center',
+    height: 108,
+    justifyContent: 'center',
+    marginBottom: 14,
+    width: 108
+  },
+  logo: {
+    borderRadius: 24,
+    height: 96,
+    width: 96
+  },
+  login: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 18,
+    textAlign: 'center'
+  },
+  dots: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 7,
+    height: 18,
+    justifyContent: 'center'
+  },
+  dot: {
+    borderRadius: 4,
+    height: 8,
+    overflow: 'hidden',
+    width: 8
+  },
+  dotFill: {
+    flex: 1
+  }
+});
 
 function BrandPillButton({ active, activeTextStyle, label, onPress, style, textStyle }) {
   if (active) {
@@ -586,6 +632,51 @@ const themes = {
   }
 };
 
+function hexToRgb(hex) {
+  const raw = String(hex || '').replace('#', '');
+  const normalized = raw.length === 3
+    ? raw.split('').map((part) => `${part}${part}`).join('')
+    : raw;
+  return {
+    r: parseInt(normalized.slice(0, 2), 16) || 0,
+    g: parseInt(normalized.slice(2, 4), 16) || 0,
+    b: parseInt(normalized.slice(4, 6), 16) || 0
+  };
+}
+
+function rgbToHex({ r, g, b }) {
+  const toHex = (value) => Math.round(Math.max(0, Math.min(255, value))).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+const THEME_COLOR_KEYS = Object.keys(themes.light).filter((key) => {
+  const value = themes.light[key];
+  return typeof value === 'string' && value.startsWith('#');
+});
+
+const THEME_RGB = {
+  light: Object.fromEntries(THEME_COLOR_KEYS.map((key) => [key, hexToRgb(themes.light[key])])),
+  dark: Object.fromEntries(THEME_COLOR_KEYS.map((key) => [key, hexToRgb(themes.dark[key])]))
+};
+
+function mixThemes(fromTheme, toTheme, progress) {
+  const t = Math.max(0, Math.min(1, progress));
+  const next = { ...fromTheme, name: t >= 0.5 ? toTheme.name : fromTheme.name };
+  const fromRgb = THEME_RGB[fromTheme.name] || THEME_RGB.light;
+  const toRgb = THEME_RGB[toTheme.name] || THEME_RGB.dark;
+  for (let i = 0; i < THEME_COLOR_KEYS.length; i += 1) {
+    const key = THEME_COLOR_KEYS[i];
+    const from = fromRgb[key];
+    const to = toRgb[key];
+    next[key] = rgbToHex({
+      r: from.r + (to.r - from.r) * t,
+      g: from.g + (to.g - from.g) * t,
+      b: from.b + (to.b - from.b) * t
+    });
+  }
+  return next;
+}
+
 function describeChanges(previousEvents, nextEvents) {
   if (!previousEvents.length) return null;
 
@@ -757,6 +848,7 @@ export default function App() {
   const [legalDocument, setLegalDocument] = useState(null);
   const [portalWebView, setPortalWebView] = useState(null);
   const [themeName, setThemeName] = useState('light');
+  const [displayTheme, setDisplayTheme] = useState(themes.light);
   const [school, setSchool] = useState(SCHOOL_CDV);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [focusedField, setFocusedField] = useState(null);
@@ -798,6 +890,11 @@ export default function App() {
 
   const eventsRef = useRef([]);
   const syncInProgressRef = useRef(false);
+  const skipImmediateSyncRef = useRef(false);
+  const skipThemeAnimationRef = useRef(true);
+  const themeProgress = useRef(new Animated.Value(0)).current;
+  const themeAnimFrameRef = useRef(null);
+  const themeAnimValueRef = useRef(0);
   const portalSessionCacheRef = useRef(null);
   const enrichInProgressRef = useRef(false);
   const enrichSyncGenerationRef = useRef(0);
@@ -839,7 +936,7 @@ export default function App() {
     if (!query) return wseitContexts;
     return wseitContexts.filter((context) => context.label.toLowerCase().includes(query));
   }, [wseitContextFilter, wseitContexts]);
-  const theme = themes[themeName];
+  const theme = displayTheme;
   const [fontsLoaded] = useFonts({
     [FONT.body]: require('./assets/fonts/Krub-Regular.ttf'),
     [FONT.bodyBold]: require('./assets/fonts/Krub-Bold.ttf'),
@@ -902,6 +999,47 @@ export default function App() {
   useEffect(() => {
     restoreCredentialsAndCache();
   }, []);
+
+  useEffect(() => {
+    const listenerId = themeProgress.addListener(({ value }) => {
+      themeAnimValueRef.current = value;
+      if (themeAnimFrameRef.current != null) return;
+      themeAnimFrameRef.current = requestAnimationFrame(() => {
+        themeAnimFrameRef.current = null;
+        setDisplayTheme(mixThemes(themes.light, themes.dark, themeAnimValueRef.current));
+      });
+    });
+
+    return () => {
+      themeProgress.removeListener(listenerId);
+      if (themeAnimFrameRef.current != null) {
+        cancelAnimationFrame(themeAnimFrameRef.current);
+        themeAnimFrameRef.current = null;
+      }
+    };
+  }, [themeProgress]);
+
+  useEffect(() => {
+    if (skipThemeAnimationRef.current) {
+      skipThemeAnimationRef.current = false;
+      themeProgress.setValue(themeName === 'dark' ? 1 : 0);
+      setDisplayTheme(themes[themeName]);
+      return undefined;
+    }
+
+    const animation = Animated.timing(themeProgress, {
+      duration: THEME_TRANSITION_MS,
+      easing: THEME_TRANSITION_EASING,
+      toValue: themeName === 'dark' ? 1 : 0,
+      useNativeDriver: false
+    });
+
+    animation.start(({ finished }) => {
+      if (finished) setDisplayTheme(themes[themeName]);
+    });
+
+    return () => animation.stop();
+  }, [themeName, themeProgress]);
 
   useEffect(() => {
     watFacultyIdRef.current = watFacultyId;
@@ -1432,6 +1570,7 @@ export default function App() {
       } finally {
         setLoading(false);
         setSyncing(false);
+        setProfileLoginLoadingProfile(null);
         syncInProgressRef.current = false;
         updateLoginPhase('');
       }
@@ -1442,7 +1581,11 @@ export default function App() {
   useEffect(() => {
     if (!saved || !email || !password) return undefined;
 
-    syncSemester({ notifyChanges: eventsRef.current.length > 0, showErrors: eventsRef.current.length === 0 });
+    const skipImmediate = skipImmediateSyncRef.current;
+    skipImmediateSyncRef.current = false;
+    if (!skipImmediate) {
+      syncSemester({ notifyChanges: eventsRef.current.length > 0, showErrors: eventsRef.current.length === 0 });
+    }
 
     const interval = setInterval(() => {
       syncSemester({ notifyChanges: true, showErrors: false });
@@ -1857,12 +2000,10 @@ export default function App() {
 
   if (!fontsLoaded) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: theme.appBg }}>
+      <>
         <StatusBar style="light" />
-        <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
-          <ActivityIndicator color={theme.accent} />
-        </View>
-      </SafeAreaView>
+        <AppSplashScreen />
+      </>
     );
   }
 
@@ -1883,7 +2024,12 @@ export default function App() {
     setSavedProfiles(profiles);
     if (storedRemember === 'false') setRememberProfile(false);
     if (storedTheme === 'dark' || storedTheme === 'light') {
+      if (storedTheme !== themeName) {
+        skipThemeAnimationRef.current = true;
+      }
       setThemeName(storedTheme);
+      setDisplayTheme(themes[storedTheme]);
+      themeProgress.setValue(storedTheme === 'dark' ? 1 : 0);
     }
     setCardVisibility(parseCardVisibility(storedCardVisibility));
     setSchool(nextSchool);
@@ -2001,7 +2147,8 @@ export default function App() {
 
   async function saveCredentialsAndRefresh(pdfOverride = '') {
     const loginValue = email.trim();
-    const resolvedSchool = resolveSchoolForLogin(loginValue, resolveWszipPdfCredential(pdfOverride) || password);
+    const credentialOverride = typeof pdfOverride === 'string' ? pdfOverride : '';
+    const resolvedSchool = resolveSchoolForLogin(loginValue, resolveWszipPdfCredential(credentialOverride) || password);
     const nextSchool = loginSchool === SCHOOL_WSZIP ? SCHOOL_WSZIP : resolvedSchool;
     const isUsos = nextSchool === SCHOOL_USOS;
     const isWszip = nextSchool === SCHOOL_WSZIP;
@@ -2009,7 +2156,7 @@ export default function App() {
     const isWat = nextSchool === SCHOOL_WAT;
     const isWseit = nextSchool === SCHOOL_WSEIT;
     const isMoodleLogin = isWszip;
-    const activeCredential = resolveWszipPdfCredential(pdfOverride);
+    const activeCredential = resolveWszipPdfCredential(credentialOverride);
     const usosSecondFactorCodeSnapshot = usosSecondFactorCodeRef.current.trim();
 
     Keyboard.dismiss();
@@ -2207,6 +2354,7 @@ export default function App() {
       else if (stored?.pdfUri) setPollubPdfSelection(stored.pdfUri);
     }
     setSchool(nextSchool);
+    skipImmediateSyncRef.current = true;
     setSaved(true);
     await loadStudentProfileForAccount(nextSchool, loginValue, credentialsToSave);
     if (isUsos) {
@@ -2256,10 +2404,8 @@ export default function App() {
 
   async function loginWithProfile(profile) {
     syncInProgressRef.current = false;
-    const usosSecondFactorCodeSnapshot = usosSecondFactorCodeRef.current.trim();
     Keyboard.dismiss();
     setProfileLoginLoadingProfile(profile);
-    const attemptId = beginLoginAttempt();
     setLoading(true);
     setSyncing(false);
     updateLoginPhase(`Odczytuję zapamiętany profil: ${profile.login}`);
@@ -2318,146 +2464,67 @@ export default function App() {
       if (stored?.contextLabel) setWseitSelectedContextLabel(stored.contextLabel);
     }
     setSchool(profile.school);
-    try {
-      if (profile.school === SCHOOL_POLLUB) {
-        const stored = unpackPollubStoredCredential(profilePassword);
-        const pollubPass = stored?.password || profilePassword;
-        if (!pollubPass) {
-          setProfileLoginLoadingProfile(null);
-          setLoading(false);
-          updateLoginPhase('');
-          Alert.alert(
-            'Profil POLLUB wymaga danych',
-            'Uzupełnij hasło eHMS.'
-          );
-          return;
-        }
-      }
 
-      const pollubStored = profile.school === SCHOOL_POLLUB
-        ? unpackPollubStoredCredential(profilePassword)
-        : null;
-      const wszipStored = profile.school === SCHOOL_WSZIP
-        ? unpackWszipStoredCredential(profilePassword)
-        : null;
-      const usosStored = profile.school === SCHOOL_USOS
-        ? unpackUsosStoredCredential(profilePassword)
-        : null;
-      const watStored = profile.school === SCHOOL_WAT
-        ? unpackWatStoredCredential(profilePassword)
-        : null;
-      const wseitStored = profile.school === SCHOOL_WSEIT
-        ? unpackWseitStoredCredential(profilePassword)
-        : null;
-      let credentialsToSave = profilePassword;
-
-      if (profile.school === SCHOOL_WSZIP && !wszipStored?.pdfUri) {
-        eventsRef.current = [];
-        setEvents([]);
-        setLastSync(null);
-      } else {
-        const scheduleResult = normalizeScheduleFetchResult(await loginAndFetchSchedule({
-          school: profile.school,
-          email: profile.login,
-          password: profile.school === SCHOOL_USOS
-            ? packUsosStoredCredential(usosStored?.password || '', usosStored?.icalUrl || '')
-            : pollubStored?.password || profilePassword,
-          startDateKey: semesterRange.startKey,
-          endDateKey: semesterRange.endKey,
-          onCredentials: (credentials) => {
-            credentialsToSave = credentials;
-          },
-          onPhase: updateLoginPhase,
-          onStudentProfile: (autoPatch) => applyAutoStudentProfile(profile.school, profile.login, autoPatch),
-          extractPdfTextLocal,
-          usosSecondFactorCode: profile.school === SCHOOL_USOS ? usosSecondFactorCodeSnapshot : '',
-          pollubPdfUri: pollubPdfUrisRef.current[0] || pollubStored?.pdfUris?.[0] || pollubStored?.pdfUri || '',
-          pollubPdfUris: pollubPdfUrisRef.current.length ? pollubPdfUrisRef.current : pollubStored?.pdfUris || [],
-          watFacultyId: watStored?.facultyId || watFacultyIdRef.current,
-          watGroupCode: watStored?.groupCode || watSelectedGroupRef.current,
-          watGroupHref: watStored?.groupHref || watSelectedGroupHrefRef.current,
-          wseitContextId: wseitStored?.contextId || wseitSelectedContextIdRef.current,
-          wseitContextLabel: wseitStored?.contextLabel || wseitSelectedContextLabelRef.current
-        }));
-        if (!isLoginAttemptCurrent(attemptId)) return;
-        const previousEvents = eventsRef.current;
-        enrichSyncGenerationRef.current += 1;
-        const syncGeneration = enrichSyncGenerationRef.current;
-        cancelPendingEnrichFlush();
-        enrichInProgressRef.current = false;
-
-        const nextEvents = mergeScheduleWithExisting(previousEvents, scheduleResult.events);
-        rememberPortalSession(profile.school, scheduleResult.portalCookies);
-        if (profile.school === SCHOOL_WSEIT) {
-          credentialsToSave = packWseitStoredCredential(
-            wseitStored?.password || profilePassword,
-            {
-              contextId: wseitStored?.contextId || wseitSelectedContextIdRef.current,
-              contextLabel: wseitStored?.contextLabel || wseitSelectedContextLabelRef.current
-            }
-          );
-        }
-        if (profile.school === SCHOOL_POLLUB) {
-          applyDiscoveredPollubPdfUris(scheduleResult.discoveredPollubPdfUris);
-          credentialsToSave = packPollubStoredCredential(
-            pollubStored?.password || profilePassword,
-            pollubPdfUrisRef.current
-          );
-        }
-        const syncedAt = new Date();
-
-        eventsRef.current = nextEvents;
-        setEvents(nextEvents);
-        setLastSync(syncedAt);
-        if (profile.school === SCHOOL_WSZIP) {
-          const focus = focusRangeForEvents(nextEvents, anchorDateRef.current, modeRef.current);
-          if (focus) {
-            setAnchorDate(focus.anchorDate);
-            setMode(focus.mode);
-          }
-        }
-        await writePlanCache(profile.school, profile.login, {
-          events: nextEvents,
-          lastSync: syncedAt.toISOString(),
-          semesterStartKey: semesterRange.startKey,
-          semesterEndKey: semesterRange.endKey
-        });
-        if (scheduleResult.enrichDetails) {
-          void enrichScheduleDetailsInBackground({
-            activeSchool: profile.school,
-            enrichDetails: scheduleResult.enrichDetails,
-            loginEmail: profile.login,
-            syncGeneration
-          });
-        }
-      }
-      profilePassword = credentialsToSave;
-    } catch (error) {
-      if (!isLoginAttemptCurrent(attemptId) || isLoginCancelledError(error)) {
+    if (profile.school === SCHOOL_POLLUB) {
+      const stored = unpackPollubStoredCredential(profilePassword);
+      const pollubPass = stored?.password || profilePassword;
+      if (!pollubPass) {
         setProfileLoginLoadingProfile(null);
         setLoading(false);
         updateLoginPhase('');
+        Alert.alert(
+          'Profil POLLUB wymaga danych',
+          'Uzupełnij hasło eHMS.'
+        );
         return;
       }
-      if (error?.code === 'USOS_2FA_REQUIRED') {
-        setUsosSecondFactorRequired(true);
-        setProfileLoginLoadingProfile(null);
-        setLoading(false);
-        updateLoginPhase('');
-        return;
+    }
+
+    const cachedPlan = await readPlanCache(profile.school, profile.login);
+    const hasCachedPlan = Boolean(cachedPlan?.events?.length);
+
+    if (profile.school === SCHOOL_WSZIP && !unpackWszipStoredCredential(profilePassword)?.pdfUri) {
+      eventsRef.current = [];
+      setEvents([]);
+      setLastSync(null);
+    } else if (hasCachedPlan) {
+      eventsRef.current = cachedPlan.events;
+      setEvents(cachedPlan.events);
+      if (cachedPlan.lastSync) setLastSync(new Date(cachedPlan.lastSync));
+      if (profile.school === SCHOOL_WSZIP) {
+        const focus = focusRangeForEvents(cachedPlan.events, new Date(), 'today');
+        if (focus) {
+          setAnchorDate(focus.anchorDate);
+          setMode(focus.mode);
+        }
       }
-      const phase = loginPhaseRef.current ? `Etap: ${loginPhaseRef.current}\n\n` : '';
-      Alert.alert('Nie udało się wczytać planu', `${phase}${error.message || 'Dane logowania są nieprawidłowe.'}`);
+    }
+
+    loadStudentProfileForAccount(profile.school, profile.login, profilePassword).catch(() => {});
+
+    if (hasCachedPlan) {
+      setSaved(true);
       setProfileLoginLoadingProfile(null);
       setLoading(false);
       updateLoginPhase('');
-      return;
+    } else {
+      const synced = await syncSemester({
+        forceStart: true,
+        nextEmail: profile.login,
+        nextPassword: profilePassword,
+        notifyChanges: false,
+        showErrors: true,
+        showLoader: true
+      });
+      if (!synced) {
+        setProfileLoginLoadingProfile(null);
+        setLoading(false);
+        updateLoginPhase('');
+        return;
+      }
+      skipImmediateSyncRef.current = true;
+      setSaved(true);
     }
-
-    setSaved(true);
-    await loadStudentProfileForAccount(profile.school, profile.login);
-    setLoading(false);
-    updateLoginPhase('Zapisuję aktywny profil');
 
     try {
       await Promise.all([
@@ -2467,7 +2534,7 @@ export default function App() {
         AsyncStorage.setItem(SCHOOL_KEY, profile.school)
       ]);
     } catch (error) {
-      Alert.alert('Plan pobrany', error.message || 'Nie udało się zapisać aktywnego profilu, ale plan jest już dostępny.');
+      Alert.alert('Zalogowano', error.message || 'Nie udało się zapisać aktywnego profilu, ale plan jest już dostępny.');
     } finally {
       setProfileLoginLoadingProfile(null);
       setLoading(false);
@@ -2777,11 +2844,7 @@ export default function App() {
           </ScrollView>
         </View>
       ) : profileLoginLoadingProfile ? (
-        <SavedProfileLoadingScreen
-          profile={profileLoginLoadingProfile}
-          styles={styles}
-          themeName={themeName}
-        />
+        <AppSplashScreen profile={profileLoginLoadingProfile} />
       ) : (
         <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
           <>
@@ -3101,13 +3164,17 @@ export default function App() {
               )}
               <View style={styles.primaryButtonRow}>
                 <Pressable
+                  accessibilityRole="button"
                   disabled={loading}
-                  onPress={saveCredentialsAndRefresh}
+                  onPress={() => {
+                    void saveCredentialsAndRefresh();
+                  }}
                   style={[styles.primaryButton, styles.primaryButtonFlex, loading && styles.primaryButtonDisabled]}
                 >
                   <LinearGradient
                     colors={BRAND_GRADIENT}
                     end={BRAND_GRADIENT_END}
+                    pointerEvents="none"
                     start={BRAND_GRADIENT_START}
                     style={styles.primaryButtonGradient}
                   >
@@ -3815,12 +3882,79 @@ const stylesTextMaskOuter = {
   overflow: 'visible'
 };
 
+const HEADER_TITLE_WORD_HEIGHT = 30;
+const HEADER_TITLE_WORD_DROP_MS = Math.round(520 * 1.15);
+
 function AnimatedHeaderTitle({ isTomorrow, styles }) {
+  const target = isTomorrow ? 'jutro' : 'dziś';
+  const progress = useRef(new Animated.Value(0)).current;
+  const skipFirst = useRef(true);
+  const stackRef = useRef({ from: target, to: target });
+  const [stack, setStack] = useState({ from: target, to: target });
+  const outgoingY = useMemo(() => progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, HEADER_TITLE_WORD_HEIGHT]
+  }), [progress]);
+  const incomingY = useMemo(() => progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-HEADER_TITLE_WORD_HEIGHT, 0]
+  }), [progress]);
+
+  useEffect(() => {
+    if (skipFirst.current) {
+      skipFirst.current = false;
+      stackRef.current = { from: target, to: target };
+      return undefined;
+    }
+
+    const from = stackRef.current.to;
+    if (from === target) return undefined;
+
+    stackRef.current = { from, to: target };
+    setStack({ from, to: target });
+    progress.setValue(0);
+    const animation = Animated.timing(progress, {
+      duration: HEADER_TITLE_WORD_DROP_MS,
+      easing: Easing.bezier(0.16, 1, 0.3, 1),
+      toValue: 1,
+      useNativeDriver: true
+    });
+    animation.start(({ finished }) => {
+      if (!finished) return;
+      stackRef.current = { from: target, to: target };
+      setStack({ from: target, to: target });
+    });
+
+    return () => animation.stop();
+  }, [progress, target]);
+
+  const dropping = stack.from !== stack.to;
+
   return (
-    <View style={styles.headerTitleRow}>
-      <Text accessibilityRole="header" style={styles.headerTitle}>
-        {`cdv${isTomorrow ? 'jutro' : 'dziś'}`}
-      </Text>
+    <View
+      accessible
+      accessibilityLabel={`cdv${target}`}
+      accessibilityRole="header"
+      style={styles.headerTitleRow}
+    >
+      <Text style={styles.headerTitle}>cdv</Text>
+      <View style={styles.headerTitleWordSlot}>
+        <Text style={[styles.headerTitle, styles.headerTitleWordSizer]}>jutro</Text>
+        {dropping ? (
+          <>
+            <Animated.View style={[styles.headerTitleWordLayer, { transform: [{ translateY: outgoingY }] }]}>
+              <Text style={styles.headerTitle}>{stack.from}</Text>
+            </Animated.View>
+            <Animated.View style={[styles.headerTitleWordLayer, { transform: [{ translateY: incomingY }] }]}>
+              <Text style={styles.headerTitle}>{stack.to}</Text>
+            </Animated.View>
+          </>
+        ) : (
+          <View style={styles.headerTitleWordLayer}>
+            <Text style={styles.headerTitle}>{stack.to}</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -3998,37 +4132,11 @@ function SettingsShell({ children, drawer, drawerBackgroundColor, edgeSwipeEnabl
   );
 }
 
-function SettingsDrawerLogo({ darkMode, styles }) {
-  const progress = useRef(new Animated.Value(darkMode ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.timing(progress, {
-      duration: 280,
-      easing: Easing.out(Easing.cubic),
-      toValue: darkMode ? 1 : 0,
-      useNativeDriver: true
-    }).start();
-  }, [darkMode, progress]);
-
-  const whiteOpacity = progress;
-  const blackOpacity = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 0]
-  });
-
+function SettingsDrawerLogo({ styles }) {
   return (
     <View style={styles.drawerBrandWrap}>
       <View style={styles.drawerLogoWrap}>
-        <Animated.Image
-          resizeMode="contain"
-          source={APP_ICON_BLACK}
-          style={[styles.drawerLogo, styles.drawerLogoLayer, { opacity: blackOpacity }]}
-        />
-        <Animated.Image
-          resizeMode="contain"
-          source={APP_ICON_WHITE}
-          style={[styles.drawerLogo, styles.drawerLogoLayer, { opacity: whiteOpacity }]}
-        />
+        <Image resizeMode="contain" source={APP_ICON} style={styles.drawerLogo} />
       </View>
       <BrandGradientSurface style={styles.drawerBrandTextWrap} textMask>
         <Text style={styles.drawerBrandTextMask}>cdv dziś</Text>
@@ -4042,8 +4150,8 @@ function SettingsToggle({ onValueChange, styles, value }) {
 
   useEffect(() => {
     Animated.timing(progress, {
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
+      duration: THEME_TRANSITION_MS,
+      easing: THEME_TRANSITION_EASING,
       toValue: value ? 1 : 0,
       useNativeDriver: true
     }).start();
@@ -4140,7 +4248,7 @@ function SettingsDrawer({
       >
         <View style={drawerStyles.drawerMain}>
           <View style={drawerStyles.brandZone}>
-            <SettingsDrawerLogo darkMode={darkMode} styles={drawerStyles} />
+            <SettingsDrawerLogo styles={drawerStyles} />
           </View>
 
           <View style={drawerStyles.menuBlock}>
@@ -4463,8 +4571,10 @@ function createStyles(theme) {
       width: 30
     },
     headerLogo: {
-      height: 46,
-      width: 46
+      borderRadius: 10,
+      height: 40,
+      overflow: 'hidden',
+      width: 40
     },
     cdvWatermark: {
       alignSelf: 'center',
@@ -4487,9 +4597,21 @@ function createStyles(theme) {
       padding: 0
     },
     headerTitleRow: {
-      alignItems: 'baseline',
+      alignItems: 'center',
       flexDirection: 'row',
       flexShrink: 1
+    },
+    headerTitleWordSlot: {
+      height: HEADER_TITLE_WORD_HEIGHT,
+      overflow: 'hidden'
+    },
+    headerTitleWordSizer: {
+      opacity: 0
+    },
+    headerTitleWordLayer: {
+      left: 0,
+      position: 'absolute',
+      top: 0
     },
     settingsButton: {
       flexShrink: 0,
@@ -5684,7 +5806,9 @@ function createSettingsDrawerStyles(theme) {
       paddingBottom: 4
     },
     drawerLogo: {
+      borderRadius: 16,
       height: SETTINGS_DRAWER_LOGO_SIZE,
+      overflow: 'hidden',
       width: SETTINGS_DRAWER_LOGO_SIZE
     },
     drawerLogoLayer: {
@@ -5696,6 +5820,7 @@ function createSettingsDrawerStyles(theme) {
       alignItems: 'center',
       height: SETTINGS_DRAWER_LOGO_SIZE,
       justifyContent: 'center',
+      overflow: 'hidden',
       width: SETTINGS_DRAWER_LOGO_SIZE
     },
     menuBlock: {
