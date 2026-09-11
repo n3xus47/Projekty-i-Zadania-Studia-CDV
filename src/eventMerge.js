@@ -1,5 +1,3 @@
-import { refreshMeritoEvents } from './meritoEventStatus.js';
-
 export const EVENT_DETAIL_FIELDS = [
   'module',
   'form',
@@ -58,20 +56,16 @@ export function mergeEventDetails(existing, incoming) {
 
 export function mergeScheduleWithExisting(previousEvents, incomingEvents) {
   const previousById = new Map(previousEvents.map((event) => [eventIdentity(event), event]));
-  return refreshMeritoEvents(
-    incomingEvents.map((incoming) =>
-      mergeEventDetails(previousById.get(eventIdentity(incoming)), incoming)
-    )
+  return incomingEvents.map((incoming) =>
+    mergeEventDetails(previousById.get(eventIdentity(incoming)), incoming)
   );
 }
 
 export function mergeEnrichedEvents(current, enriched) {
   const enrichedById = new Map(enriched.map((event) => [eventIdentity(event), event]));
-  return refreshMeritoEvents(
-    current.map((event) => {
-      const patch = enrichedById.get(eventIdentity(event));
-      if (!patch) return event;
-      return mergeEventDetails(event, patch);
-    })
-  );
+  return current.map((event) => {
+    const patch = enrichedById.get(eventIdentity(event));
+    if (!patch) return event;
+    return mergeEventDetails(event, patch);
+  });
 }

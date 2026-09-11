@@ -1,8 +1,3 @@
-/** Wspólne anulowanie długiego logowania (WebView + ignorowanie spóźnionych wyników). */
-
-import { cancelUsosWebViewLogin } from './usosWebViewBridge.js';
-import { cancelWszipWebViewLogin } from './wszipWebViewBridge.js';
-
 let loginAttempt = 0;
 
 export const LOGIN_CANCELLED_CODE = 'LOGIN_CANCELLED';
@@ -18,8 +13,6 @@ export function isLoginAttemptCurrent(attemptId) {
 
 export function cancelActiveLoginOperations() {
   loginAttempt += 1;
-  cancelUsosWebViewLogin?.();
-  cancelWszipWebViewLogin?.();
 }
 
 export function isLoginCancelledError(error) {

@@ -34,9 +34,7 @@ EOF
   echo "Created Play upload keystore in credentials/ (do not lose this file)."
 fi
 
-# shellcheck disable=SC1090
 set -a
-# Convert properties into env for Gradle
 STORE_FILE="$(sed -n 's/^storeFile=//p' "$PROPS")"
 STORE_PASSWORD="$(sed -n 's/^storePassword=//p' "$PROPS")"
 KEY_ALIAS="$(sed -n 's/^keyAlias=//p' "$PROPS")"
@@ -47,7 +45,6 @@ if [[ ! -d "$ROOT/android" ]]; then
   CI=1 npx expo prebuild --platform android --non-interactive
 fi
 
-# Gradle 9 removed jcenter(); @react-native-cookies/cookies@6.2.1 still calls it.
 COOKIES_GRADLE="$ROOT/node_modules/@react-native-cookies/cookies/android/build.gradle"
 if [[ -f "$COOKIES_GRADLE" ]]; then
   sed -i 's/jcenter()/mavenCentral()/g' "$COOKIES_GRADLE"

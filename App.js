@@ -4,6 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFonts } from 'expo-font';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import * as SecureStore from 'expo-secure-store';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,7 +35,6 @@ import {
   daysBetween,
   endExclusiveForMode,
   eventTimeRange,
-  focusRangeForEvents,
   groupEventsByDay,
   nearestUpcomingEventFocus,
   MONTHS_SHORT,
@@ -43,24 +43,6 @@ import {
   startForMode,
   toDateKey
 } from './src/dateUtils';
-import { useLocalPdfParser } from './src/LocalPdfParserProvider';
-import { openMoodleInBrowser } from './src/moodleSession';
-import {
-  looksLikePollubStoredCredential,
-  packPollubStoredCredential,
-  pickPollubPdfFile,
-  pollubPdfLabel,
-  unpackPollubStoredCredential
-} from './src/pollubClient';
-import {
-  looksLikeWszipPdfCredential,
-  looksLikeWszipStoredCredential,
-  packWszipStoredCredential,
-  pickWszipPdfFile,
-  unpackWszipStoredCredential,
-  unpackWszipPdfCredential,
-  wszipPdfLabel
-} from './src/wszipClient';
 import { StudentDataSection } from './src/StudentDataSection';
 import { LegalDocumentModal } from './src/LegalDocumentModal';
 import { LegalLinks } from './src/LegalLinks';
@@ -69,19 +51,8 @@ import {
   createEmptyStudentProfile,
   mergeAutoStudentProfile,
   readStudentProfile,
-  studentProfileFromPollubLegacyMeta,
   writeStudentProfile
 } from './src/studentProfile';
-import { buildMeritoPortalAutofillScript, isMeritoLoginUrl } from './src/meritoPortalAutofill';
-import { buildPollubPortalAutofillScript, isPollubPortalUrl } from './src/pollubPortalAutofill';
-import {
-  buildUsosPortalAutofillScript,
-  resolveUsosPortalWebView,
-  shouldInjectUsosPortalAutofill,
-  usosWebViewUserAgent
-} from './src/usosPortalAutofill';
-import { buildPortalHandshakeScript, isUsosPortalHostUrl } from './src/usosWebViewLogin';
-import { eventStatusLabel, isEventCrossedOut, refreshMeritoEvents } from './src/meritoEventStatus';
 import { buildCookieHeader } from './src/portalSession';
 import { eventIdentity, mergeEnrichedEvents, mergeScheduleWithExisting } from './src/eventMerge';
 import { formatPlanRoomLabel, isPlanEventOnline, sanitizePlanAdditionalInfo, shouldShowPlanOnlineLink } from './src/planEventInfo';
@@ -93,53 +64,10 @@ import {
   isLoginCancelledError
 } from './src/loginCancellation';
 import {
-  isUsosSemesterValueValid,
-  sanitizeUsosSemesterValue,
-  shouldRefreshUsosStudentProfile
-} from './src/usosStudentProfile';
-import {
-  looksLikeUsosIcalUrl,
-  looksLikeUsosStoredCredential,
-  packUsosStoredCredential,
-  tryQuickUsosSemesterFromCookies,
-  unpackUsosStoredCredential,
-  usosProfileSnapshotFromStored
-} from './src/usosClient';
-import {
-  portalUrlForLogin,
   resolveSchoolForLogin,
   schoolProfileForLogin,
-  SCHOOL_CDV,
-  SCHOOL_MERITO,
-  SCHOOL_POLLUB,
-  SCHOOL_USOS,
-  SCHOOL_WAT,
-  SCHOOL_WSEIT,
-  SCHOOL_WSZIP,
-  schoolProfiles,
-  usosFeaturedUniversityForLogin,
-  usosUniversityForLogin
+  SCHOOL_CDV
 } from './src/schoolConfig';
-import {
-  watSemesterForDate
-} from './src/watConfig';
-import {
-  listWatGroupsForLogin,
-  looksLikeWatStoredCredential,
-  packWatStoredCredential,
-  unpackWatStoredCredential
-} from './src/watClient';
-import {
-  listWseitContextsForLogin,
-  looksLikeWseitStoredCredential,
-  packWseitStoredCredential,
-  unpackWseitStoredCredential
-} from './src/wseitClient';
-import { PollubHelpModal } from './src/PollubHelpModal';
-import { PollubPdfManagerModal } from './src/PollubPdfManagerModal';
-import { WatGroupPickerModal } from './src/WatGroupPickerModal';
-import { WseitContextPickerModal } from './src/WseitContextPickerModal';
-import { WszipHelpModal } from './src/WszipHelpModal';
 import { WebView } from 'react-native-webview';
 import appConfig from './app.json';
 
@@ -151,7 +79,6 @@ const PROFILES_KEY = 'comamdzis_saved_profiles';
 const REMEMBER_PROFILE_KEY = 'comamdzis_remember_profile';
 const THEME_KEY = 'cdv_plan_theme';
 const CARD_VISIBILITY_KEY = 'comamdzis_card_visibility';
-const POLLUB_META_KEY_PREFIX = 'comamdzis_pollub_meta:';
 const BACKGROUND_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 const PORTAL_SESSION_TTL_MS = 30 * 60 * 1000;
 const CDV_PORTAL_HOME_URL = 'https://wu.cdv.pl/?page=Main';
@@ -159,19 +86,11 @@ const CDV_BLACKBOARD_BASE_URL = 'https://cdv.blackboard.com/auth-saml/saml/login
 const SECURE_STORE_TIMEOUT_MS = 5000;
 const APP_ICON = require('./assets/app-icon.png');
 const APP_SPLASH_BG = '#0d0618';
+SplashScreen.preventAutoHideAsync().catch(() => {});
 const THEME_TRANSITION_MS = 160;
 const THEME_TRANSITION_EASING = Easing.out(Easing.cubic);
 const APP_VERSION = appConfig?.expo?.version || '0.1.0';
 const CDV_LOGO = require('./assets/cdv-logo-white.png');
-const MERITO_LOGO = require('./assets/merito-logo.png');
-const LOGO_221 = require('./assets/logo-221.png');
-const WSZIP_LOGO = LOGO_221;
-const USOS_UNIVERSITY_LOGOS = {
-  pw: require('./assets/pw.png'),
-  uj: require('./assets/ujlogo.png'),
-  umcs: require('./assets/umcs.png')
-};
-const PROFILE_LOGO_TINT = '#ffffff';
 const FONT = {
   body: 'Krub-Regular',
   bodyBold: 'Krub-Bold',
@@ -186,56 +105,15 @@ const buildCdvBlackboardUrl = (login) => {
   if (!normalizedLogin) return CDV_BLACKBOARD_BASE_URL;
   return `${CDV_BLACKBOARD_BASE_URL}&login_hint=${encodeURIComponent(normalizedLogin)}&domain_hint=organizations`;
 };
-const USOS_ICAL_HELP_STEPS = [
-  'Zaloguj się do systemu USOSweb swojej uczelni.',
-  'Przejdź do zakładki MÓJ USOSWEB.',
-  'Wejdź w Mój USOSweb → Plan zajęć.',
-  'Kliknij „eksportuj” w prawym górnym rogu planu (nie mylić z „Eksportuj plan” w menu głównym).',
-  'Skopiuj odnośnik z pola „Odnośnik do planu” (link iCal).',
-  'Skopiuj wygenerowany link przypisany indywidualnie do Twojego konta i wklej go w polu iCal.'
-];
-
-function schoolLogoForProfile({ login, school }) {
-  if (school === SCHOOL_WSZIP) return WSZIP_LOGO;
-  if (school === SCHOOL_WAT) return LOGO_221;
-  if (school === SCHOOL_WSEIT) return LOGO_221;
-  if (school === SCHOOL_POLLUB) return LOGO_221;
-  if (school === SCHOOL_MERITO) return MERITO_LOGO;
-  if (school === SCHOOL_USOS) {
-    const featured = usosFeaturedUniversityForLogin(login);
-    if (featured) return USOS_UNIVERSITY_LOGOS[featured.id];
-    return APP_ICON;
-  }
-  return CDV_LOGO;
+function isEventCrossedOut(event) {
+  return Boolean(event?.isCrossedOut);
 }
 
-function schoolSubtitleForProfile({ login, school }) {
-  if (school === SCHOOL_USOS) {
-    const university = usosUniversityForLogin(login);
-    if (university?.name) return `${university.name} (USOS)`;
-  }
-  return schoolProfiles[school]?.subtitle || 'Uczelnia';
-}
-
-function detectedSchoolLabelForLogin(login, school) {
-  if (school === SCHOOL_USOS) {
-    const university = usosUniversityForLogin(login);
-    if (university?.name) return `${university.name} (USOS)`;
-  }
-
-  return schoolProfiles[school]?.subtitle || 'nieznana';
-}
-
-function usosPlanLabelForLogin(login) {
-  const university = usosUniversityForLogin(login);
-  return university?.shortName || 'USOS';
+function eventStatusLabel(event) {
+  return String(event?.statusLabel || '').trim();
 }
 
 function SavedProfileButton({ loading, onPress, onRemove, savedProfile, styles, theme }) {
-  const featuredUsos = usosFeaturedUniversityForLogin(savedProfile.login);
-  const isUsosFeatured = featuredUsos && savedProfile.school === SCHOOL_USOS;
-  const logoSource = isUsosFeatured ? USOS_UNIVERSITY_LOGOS[featuredUsos.id] : schoolLogoForProfile(savedProfile);
-
   return (
     <View style={styles.profileButton}>
       <Pressable
@@ -244,11 +122,11 @@ function SavedProfileButton({ loading, onPress, onRemove, savedProfile, styles, 
         style={({ pressed }) => [styles.profileButtonMain, pressed && styles.profileButtonPressed]}
       >
         <View style={[styles.profileLogoBox, styles.profileLogoBoxDark]}>
-          <Image resizeMode="contain" source={logoSource} style={styles.profileSchoolLogo} />
+          <Image resizeMode="contain" source={CDV_LOGO} style={styles.profileSchoolLogo} />
         </View>
         <View style={styles.profileTextBlock}>
           <Text style={styles.profileLogin}>{savedProfile.login}</Text>
-          <Text style={styles.profileSchool}>{schoolSubtitleForProfile(savedProfile)}</Text>
+          <Text style={styles.profileSchool}>Collegium Da Vinci</Text>
         </View>
       </Pressable>
       <Pressable
@@ -724,11 +602,7 @@ async function readPlanCache(school, login) {
   if (!raw) return null;
 
   try {
-    const cache = JSON.parse(raw);
-    if (Array.isArray(cache?.events)) {
-      cache.events = refreshMeritoEvents(cache.events);
-    }
-    return cache;
+    return JSON.parse(raw);
   } catch {
     return null;
   }
@@ -753,7 +627,8 @@ async function readSavedProfiles() {
 
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((profile) => profile?.school === SCHOOL_CDV);
   } catch {
     return [];
   }
@@ -815,26 +690,7 @@ async function removeSavedProfile(profileId) {
   return next;
 }
 
-function buildPortalAutoLogin(activeSchool, email, password) {
-  const login = String(email || '').trim();
-  if (!login || !password) return null;
-
-  if (activeSchool === SCHOOL_MERITO) {
-    return { email: login, password, school: SCHOOL_MERITO };
-  }
-
-  if (activeSchool === SCHOOL_POLLUB) {
-    const stored = unpackPollubStoredCredential(password);
-    const portalPassword = stored?.password || password;
-    if (!portalPassword) return null;
-    return { email: login, password: portalPassword, school: SCHOOL_POLLUB };
-  }
-
-  return null;
-}
-
 export default function App() {
-  const { extractPdfTextLocal } = useLocalPdfParser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState('today');
@@ -857,36 +713,9 @@ export default function App() {
   const [profileLoginLoadingProfile, setProfileLoginLoadingProfile] = useState(null);
   const [loginPhase, setLoginPhase] = useState('');
   const [deleteProfileConfirm, setDeleteProfileConfirm] = useState(null);
-  const [usosHelpVisible, setUsosHelpVisible] = useState(false);
-  const [usosIcalManagerVisible, setUsosIcalManagerVisible] = useState(false);
-  const [wszipHelpVisible, setWszipHelpVisible] = useState(false);
-  const [pollubHelpVisible, setPollubHelpVisible] = useState(false);
-  const [pollubPdfManagerVisible, setPollubPdfManagerVisible] = useState(false);
-  const [wszipPdfManagerVisible, setWszipPdfManagerVisible] = useState(false);
-  const [wszipPdfUri, setWszipPdfUri] = useState('');
-  const [usosIcalUrl, setUsosIcalUrl] = useState('');
-  const [usosIcalInputVisible, setUsosIcalInputVisible] = useState(false);
-  const [usosSecondFactorCode, setUsosSecondFactorCode] = useState('');
-  const [usosSecondFactorRequired, setUsosSecondFactorRequired] = useState(false);
-  const [pollubPdfUris, setPollubPdfUris] = useState([]);
   const [monthSliderOpen, setMonthSliderOpen] = useState(false);
   const [cardVisibility, setCardVisibility] = useState(DEFAULT_CARD_VISIBILITY);
   const [studentProfile, setStudentProfile] = useState(createEmptyStudentProfile);
-  const [watFacultyId, setWatFacultyId] = useState('wml');
-  const [watGroups, setWatGroups] = useState([]);
-  const [watSelectedGroup, setWatSelectedGroup] = useState('');
-  const [watSelectedGroupHref, setWatSelectedGroupHref] = useState('');
-  const [watGroupFilter, setWatGroupFilter] = useState('');
-  const [watGroupsLoading, setWatGroupsLoading] = useState(false);
-  const [watGroupsError, setWatGroupsError] = useState('');
-  const [watGroupPickerVisible, setWatGroupPickerVisible] = useState(false);
-  const [wseitContexts, setWseitContexts] = useState([]);
-  const [wseitSelectedContextId, setWseitSelectedContextId] = useState('');
-  const [wseitSelectedContextLabel, setWseitSelectedContextLabel] = useState('');
-  const [wseitContextFilter, setWseitContextFilter] = useState('');
-  const [wseitContextsLoading, setWseitContextsLoading] = useState(false);
-  const [wseitContextsError, setWseitContextsError] = useState('');
-  const [wseitContextPickerVisible, setWseitContextPickerVisible] = useState(false);
 
   const eventsRef = useRef([]);
   const syncInProgressRef = useRef(false);
@@ -901,54 +730,31 @@ export default function App() {
   const pendingEnrichedRef = useRef([]);
   const enrichFlushTimerRef = useRef(null);
   const loginPhaseRef = useRef('');
-  const usosSecondFactorCodeRef = useRef('');
-  const wszipPdfUriRef = useRef('');
-  const usosIcalUrlRef = useRef('');
-  const pollubPdfUrisRef = useRef([]);
-  const watFacultyIdRef = useRef('wml');
-  const watSelectedGroupRef = useRef('');
-  const watSelectedGroupHrefRef = useRef('');
-  const watGroupPickerDismissedForEmailRef = useRef('');
-  const wseitSelectedContextIdRef = useRef('');
-  const wseitSelectedContextLabelRef = useRef('');
-  const wseitContextPickerDismissedForEmailRef = useRef('');
   const anchorDateRef = useRef(anchorDate);
   const modeRef = useRef(mode);
   const detectedSchool = resolveSchoolForLogin(email, password);
   const loginSchool = saved ? school : detectedSchool;
   const profile = schoolProfileForLogin(loginSchool);
-  const isUsosLogin = loginSchool === SCHOOL_USOS;
-  const isWszipLogin = loginSchool === SCHOOL_WSZIP;
-  const isPollubLogin = loginSchool === SCHOOL_POLLUB;
-  const isWatLogin = loginSchool === SCHOOL_WAT;
-  const isWseitLogin = loginSchool === SCHOOL_WSEIT;
-  const hasWszipPdf = isWszipLogin && Boolean(wszipPdfUri);
-  const hasUsosIcal = isUsosLogin && Boolean(usosIcalUrl);
-  const hasPollubPdf = isPollubLogin && pollubPdfUris.length > 0;
-  const loginKeyboardType = isPollubLogin || isWseitLogin ? 'default' : 'email-address';
-  const filteredWatGroups = useMemo(() => {
-    const query = watGroupFilter.trim().toUpperCase();
-    if (!query) return watGroups;
-    return watGroups.filter((group) => group.code.toUpperCase().includes(query));
-  }, [watGroupFilter, watGroups]);
-  const filteredWseitContexts = useMemo(() => {
-    const query = wseitContextFilter.trim().toLowerCase();
-    if (!query) return wseitContexts;
-    return wseitContexts.filter((context) => context.label.toLowerCase().includes(query));
-  }, [wseitContextFilter, wseitContexts]);
+  const loginKeyboardType = 'email-address';
   const theme = displayTheme;
   const [fontsLoaded] = useFonts({
     [FONT.body]: require('./assets/fonts/Krub-Regular.ttf'),
     [FONT.bodyBold]: require('./assets/fonts/Krub-Bold.ttf'),
     [FONT.title]: require('./assets/fonts/Inter-ExtraBold.ttf')
   });
+
+  useEffect(() => {
+    if (!fontsLoaded) return undefined;
+    SplashScreen.hideAsync().catch(() => {});
+    return undefined;
+  }, [fontsLoaded]);
+
   const styles = useMemo(() => createStyles(theme), [theme]);
   const semesterRange = useMemo(() => semesterRangeForDate(anchorDate), [anchorDate]);
-  const semesterSyncKey = useMemo(() => {
-    if (school === SCHOOL_WSZIP) return 'wszip-pdf';
-    if (school === SCHOOL_POLLUB) return 'pollub-ehms';
-    return `${semesterRange.startKey}:${semesterRange.endKey}`;
-  }, [school, semesterRange]);
+  const semesterSyncKey = useMemo(
+    () => `${semesterRange.startKey}:${semesterRange.endKey}`,
+    [semesterRange]
+  );
   const monthSliderItems = useMemo(
     () => buildMonthSliderItemsAround(new Date(), MONTH_SLIDER_YEARS, MONTH_SLIDER_YEARS),
     []
@@ -986,15 +792,6 @@ export default function App() {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
-
-  useEffect(() => {
-    usosSecondFactorCodeRef.current = usosSecondFactorCode;
-  }, [usosSecondFactorCode]);
-
-  const updateUsosSecondFactorCode = useCallback((value) => {
-    usosSecondFactorCodeRef.current = value;
-    setUsosSecondFactorCode(value);
-  }, []);
 
   useEffect(() => {
     restoreCredentialsAndCache();
@@ -1040,185 +837,6 @@ export default function App() {
 
     return () => animation.stop();
   }, [themeName, themeProgress]);
-
-  useEffect(() => {
-    watFacultyIdRef.current = watFacultyId;
-  }, [watFacultyId]);
-
-  useEffect(() => {
-    watSelectedGroupRef.current = watSelectedGroup;
-  }, [watSelectedGroup]);
-
-  useEffect(() => {
-    watSelectedGroupHrefRef.current = watSelectedGroupHref;
-  }, [watSelectedGroupHref]);
-
-  useEffect(() => {
-    wseitSelectedContextIdRef.current = wseitSelectedContextId;
-  }, [wseitSelectedContextId]);
-
-  useEffect(() => {
-    wseitSelectedContextLabelRef.current = wseitSelectedContextLabel;
-  }, [wseitSelectedContextLabel]);
-
-  useEffect(() => {
-    if (!isWseitLogin || !email.trim() || !password) {
-      setWseitContexts([]);
-      setWseitContextsError('');
-      return undefined;
-    }
-
-    let cancelled = false;
-    setWseitContextsLoading(true);
-    setWseitContextsError('');
-
-    const stored = unpackWseitStoredCredential(password);
-    listWseitContextsForLogin({
-      login: email.trim(),
-      password: stored?.password || password,
-      onPhase: () => {}
-    })
-      .then((contexts) => {
-        if (cancelled) return;
-        setWseitContexts(contexts);
-        if (
-          wseitSelectedContextId &&
-          !contexts.some((context) => context.id === wseitSelectedContextId)
-        ) {
-          setWseitSelectedContextId('');
-          setWseitSelectedContextLabel('');
-        }
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setWseitContexts([]);
-        setWseitContextsError(error.message || 'Nie udało się pobrać profili studiów.');
-      })
-      .finally(() => {
-        if (!cancelled) setWseitContextsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isWseitLogin, email, password]);
-
-  useEffect(() => {
-    if (!isWatLogin) {
-      setWatGroups([]);
-      setWatGroupsError('');
-      return undefined;
-    }
-
-    let cancelled = false;
-    setWatGroupsLoading(true);
-    setWatGroupsError('');
-
-    listWatGroupsForLogin({
-      facultyId: watFacultyId,
-      onPhase: () => {}
-    })
-      .then(({ groups }) => {
-        if (cancelled) return;
-        setWatGroups(groups);
-        if (watSelectedGroup && !groups.some((g) => g.code === watSelectedGroup)) {
-          setWatSelectedGroup('');
-          setWatSelectedGroupHref('');
-        }
-      })
-      .catch((error) => {
-        if (cancelled) return;
-        setWatGroups([]);
-        setWatGroupsError(error.message || 'Nie udało się pobrać listy grup.');
-      })
-      .finally(() => {
-        if (!cancelled) setWatGroupsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isWatLogin, watFacultyId]);
-
-  useEffect(() => {
-    if (saved) return undefined;
-
-    const login = email.trim();
-    if (!login || detectedSchool !== SCHOOL_WAT) {
-      if (detectedSchool !== SCHOOL_WAT) {
-        setWatGroupPickerVisible(false);
-        watGroupPickerDismissedForEmailRef.current = '';
-      }
-      return undefined;
-    }
-
-    if (watSelectedGroup || watGroupPickerDismissedForEmailRef.current === login) {
-      return undefined;
-    }
-
-    setWatGroupPickerVisible(true);
-    return undefined;
-  }, [saved, email, detectedSchool, watSelectedGroup]);
-
-  useEffect(() => {
-    if (saved) return undefined;
-
-    const login = email.trim();
-    if (!login || detectedSchool !== SCHOOL_WSEIT) {
-      if (detectedSchool !== SCHOOL_WSEIT) {
-        setWseitContextPickerVisible(false);
-        wseitContextPickerDismissedForEmailRef.current = '';
-      }
-      return undefined;
-    }
-
-    if (!password) return undefined;
-
-    if (wseitSelectedContextId || wseitContextPickerDismissedForEmailRef.current === login) {
-      return undefined;
-    }
-
-    setWseitContextPickerVisible(true);
-    return undefined;
-  }, [saved, email, password, detectedSchool, wseitSelectedContextId]);
-
-  const closeWatGroupPicker = useCallback(() => {
-    watGroupPickerDismissedForEmailRef.current = email.trim();
-    setWatGroupPickerVisible(false);
-  }, [email]);
-
-  const confirmWatGroupPicker = useCallback(() => {
-    if (!watSelectedGroupRef.current) {
-      Alert.alert('Brak grupy', 'Wybierz grupę z listy.');
-      return;
-    }
-    watGroupPickerDismissedForEmailRef.current = email.trim();
-    setWatGroupPickerVisible(false);
-  }, [email]);
-
-  const handleWatGroupSelect = useCallback((group) => {
-    setWatSelectedGroup(group.code);
-    setWatSelectedGroupHref(group.scheduleUrl || group.href);
-  }, []);
-
-  const closeWseitContextPicker = useCallback(() => {
-    wseitContextPickerDismissedForEmailRef.current = email.trim();
-    setWseitContextPickerVisible(false);
-  }, [email]);
-
-  const confirmWseitContextPicker = useCallback(() => {
-    if (!wseitSelectedContextIdRef.current) {
-      Alert.alert('Brak profilu', 'Wybierz profil studiów z listy.');
-      return;
-    }
-    wseitContextPickerDismissedForEmailRef.current = email.trim();
-    setWseitContextPickerVisible(false);
-  }, [email]);
-
-  const handleWseitContextSelect = useCallback((context) => {
-    setWseitSelectedContextId(context.id);
-    setWseitSelectedContextLabel(context.label);
-  }, []);
 
   const updateLoginPhase = useCallback((message = '') => {
     loginPhaseRef.current = message;
@@ -1309,7 +927,6 @@ export default function App() {
         semesterEndKey: semesterRange.endKey
       });
     } catch {
-      // podstawowy plan jest juz widoczny
     } finally {
       if (!isStale()) {
         enrichInProgressRef.current = false;
@@ -1317,111 +934,30 @@ export default function App() {
     }
   }, [cancelPendingEnrichFlush, semesterRange]);
 
-  const applyAutoStudentProfile = useCallback(async (activeSchool, loginEmail, autoPatch, credentialOverride) => {
+  const applyAutoStudentProfile = useCallback(async (activeSchool, loginEmail, autoPatch) => {
     if (!activeSchool || !loginEmail || !autoPatch) return;
     const stored = await readStudentProfile(activeSchool, loginEmail);
-    const baseProfile =
-      activeSchool === SCHOOL_USOS ? { ...stored, manualFields: [] } : stored;
-    const merged = mergeAutoStudentProfile(baseProfile, autoPatch);
-    if (activeSchool === SCHOOL_USOS) {
-      const incomingSemester = sanitizeUsosSemesterValue(autoPatch?.semester);
-      if (isUsosSemesterValueValid(incomingSemester)) {
-        merged.semester = incomingSemester;
-      } else {
-        merged.semester = sanitizeUsosSemesterValue(merged.semester);
-      }
-      merged.manualFields = (merged.manualFields || []).filter((key) => key !== 'semester');
-    }
+    const merged = mergeAutoStudentProfile(stored, autoPatch);
     await writeStudentProfile(activeSchool, loginEmail, merged);
     setStudentProfile(merged);
-
-    if (activeSchool === SCHOOL_USOS && (merged.semester || merged.fullName)) {
-      try {
-        const credentialValue = credentialOverride ?? password;
-        const creds = unpackUsosStoredCredential(credentialValue);
-        if (creds?.icalUrl) {
-          await persistUsosCredentials(creds.password || credentialValue, creds.icalUrl, merged);
-        }
-      } catch {
-        // opcjonalny zapis kopii profilu przy poświadczeniach USOS
-      }
-    }
     return merged;
-  }, [password]);
+  }, []);
 
-  const scheduleUsosSemesterBackgroundRefresh = useCallback((loginEmail, credentialOverride) => {
-    if (!loginEmail) return;
-    void (async () => {
-      const current = await readStudentProfile(SCHOOL_USOS, loginEmail);
-      if (!shouldRefreshUsosStudentProfile(current)) return;
-      await tryQuickUsosSemesterFromCookies({
-        portalUrl: portalUrlForLogin(loginEmail),
-        onStudentProfile: (patch) =>
-          applyAutoStudentProfile(SCHOOL_USOS, loginEmail, patch, credentialOverride ?? password)
-      });
-    })();
-  }, [applyAutoStudentProfile, password]);
-
-  const loadStudentProfileForAccount = useCallback(async (activeSchool, loginEmail, credentialOverride) => {
+  const loadStudentProfileForAccount = useCallback(async (activeSchool, loginEmail) => {
     if (!activeSchool || !loginEmail) {
       setStudentProfile(createEmptyStudentProfile());
       return;
     }
 
-    const credentialValue = credentialOverride ?? password;
     let profile = await readStudentProfile(activeSchool, loginEmail);
-    const legacyPollubKey = `${POLLUB_META_KEY_PREFIX}${safeStorageKeyPart(loginEmail)}`;
-    const legacyPollubRaw = await AsyncStorage.getItem(legacyPollubKey);
-    if (legacyPollubRaw) {
-      try {
-        profile = mergeAutoStudentProfile(profile, studentProfileFromPollubLegacyMeta(JSON.parse(legacyPollubRaw)));
-      } catch {
-        // ignore legacy payload
-      }
-    }
     if (activeSchool === SCHOOL_CDV) {
       profile = {
         ...profile,
         university: 'Collegium Da Vinci'
       };
     }
-    if (activeSchool === SCHOOL_POLLUB && !profile.university) {
-      profile = {
-        ...profile,
-        university: 'Politechnika Lubelska'
-      };
-    }
-    if (activeSchool === SCHOOL_WSEIT && !profile.university) {
-      profile = {
-        ...profile,
-        university: 'WSEIT'
-      };
-    }
-    if (activeSchool === SCHOOL_USOS) {
-      const creds = unpackUsosStoredCredential(credentialValue);
-      const snapshot = usosProfileSnapshotFromStored(creds);
-      if (shouldRefreshUsosStudentProfile(profile) || shouldRefreshUsosStudentProfile({ ...profile, semester: snapshot.semester })) {
-        const { semester: _staleSemester, ...snapshotWithoutSemester } = snapshot;
-        profile = mergeAutoStudentProfile(profile, snapshotWithoutSemester);
-      } else {
-        profile = mergeAutoStudentProfile(profile, snapshot);
-      }
-      const cleanedSemester = sanitizeUsosSemesterValue(profile.semester);
-      if (cleanedSemester !== profile.semester) {
-        profile = {
-          ...profile,
-          semester: cleanedSemester,
-          manualFields: (profile.manualFields || []).filter((key) => key !== 'semester')
-        };
-        await writeStudentProfile(activeSchool, loginEmail, profile);
-      }
-      profile = await readStudentProfile(activeSchool, loginEmail);
-    }
     setStudentProfile(profile);
-    if (activeSchool === SCHOOL_USOS && shouldRefreshUsosStudentProfile(profile)) {
-      scheduleUsosSemesterBackgroundRefresh(loginEmail, credentialValue);
-    }
-  }, [password, scheduleUsosSemesterBackgroundRefresh]);
+  }, []);
 
   const syncSemester = useCallback(
     async ({
@@ -1443,74 +979,17 @@ export default function App() {
       const attemptId = beginLoginAttempt();
       if (showLoader || !eventsRef.current.length) setLoading(true);
       else setSyncing(true);
-      updateLoginPhase(`Start logowania: ${schoolProfiles[nextSchool]?.subtitle || 'uczelnia'}`);
+      updateLoginPhase(`Start logowania: ${schoolProfileForLogin(nextSchool)?.subtitle || 'Collegium Da Vinci'}`);
 
       try {
-        let syncPassword = nextPassword;
-        let syncPollubPdfUri = pollubPdfUrisRef.current[0] || '';
-        if (nextSchool === SCHOOL_WSZIP) {
-          const stored = unpackWszipStoredCredential(nextPassword);
-          const syncWszipPdfUri = wszipPdfUriRef.current || stored?.pdfUri || unpackWszipPdfCredential(nextPassword);
-          if (!syncWszipPdfUri) return false;
-          syncPassword = packWszipStoredCredential(syncWszipPdfUri);
-        }
-        if (nextSchool === SCHOOL_USOS) {
-          const stored = unpackUsosStoredCredential(nextPassword);
-          const syncUsosPassword = stored?.password || nextPassword;
-          const syncUsosIcalUrl = usosIcalUrlRef.current || stored?.icalUrl || '';
-          if (!syncUsosIcalUrl) return false;
-          const syncUsosProfile = await readStudentProfile(SCHOOL_USOS, nextEmail.trim());
-          syncPassword = packUsosStoredCredential(syncUsosPassword, syncUsosIcalUrl, syncUsosProfile);
-        }
-        if (nextSchool === SCHOOL_POLLUB) {
-          const stored = unpackPollubStoredCredential(nextPassword);
-          syncPassword = stored?.password || nextPassword;
-          syncPollubPdfUri = pollubPdfUrisRef.current[0] || stored?.pdfUris?.[0] || stored?.pdfUri || '';
-          if (!syncPassword) return false;
-        }
-        if (nextSchool === SCHOOL_WAT) {
-          const stored = unpackWatStoredCredential(nextPassword);
-          syncPassword =
-            stored?.password && stored?.groupCode
-              ? packWatStoredCredential(stored.password, {
-                  facultyId: stored.facultyId,
-                  groupCode: stored.groupCode,
-                  groupHref: stored.groupHref,
-                  semesterFolder: stored.semesterFolder,
-                  semesterTerm: stored.semesterTerm
-                })
-              : nextPassword;
-          if (!stored?.groupCode && !watSelectedGroupRef.current) return false;
-        }
-        if (nextSchool === SCHOOL_WSEIT) {
-          const stored = unpackWseitStoredCredential(nextPassword);
-          syncPassword =
-            stored?.password && stored?.contextId
-              ? packWseitStoredCredential(stored.password, {
-                  contextId: stored.contextId,
-                  contextLabel: stored.contextLabel
-                })
-              : nextPassword;
-          if (!stored?.contextId && !wseitSelectedContextIdRef.current) return false;
-        }
-
         const scheduleResult = normalizeScheduleFetchResult(await loginAndFetchSchedule({
           school: nextSchool,
           email: nextEmail.trim(),
-          password: syncPassword,
+          password: nextPassword,
           startDateKey: semesterRange.startKey,
           endDateKey: semesterRange.endKey,
           onPhase: updateLoginPhase,
-          onStudentProfile: (autoPatch) => applyAutoStudentProfile(nextSchool, nextEmail.trim(), autoPatch),
-          extractPdfTextLocal,
-          usosSecondFactorCode: usosSecondFactorCodeRef.current.trim(),
-          pollubPdfUri: syncPollubPdfUri,
-          pollubPdfUris: pollubPdfUrisRef.current,
-          watFacultyId: watFacultyIdRef.current,
-          watGroupCode: watSelectedGroupRef.current,
-          watGroupHref: watSelectedGroupHrefRef.current,
-          wseitContextId: wseitSelectedContextIdRef.current,
-          wseitContextLabel: wseitSelectedContextLabelRef.current
+          onStudentProfile: (autoPatch) => applyAutoStudentProfile(nextSchool, nextEmail.trim(), autoPatch)
         }));
         if (!isLoginAttemptCurrent(attemptId)) return false;
         const previousEvents = eventsRef.current;
@@ -1521,19 +1000,11 @@ export default function App() {
 
         const nextEvents = mergeScheduleWithExisting(previousEvents, scheduleResult.events);
         rememberPortalSession(nextSchool, scheduleResult.portalCookies);
-        if (nextSchool === SCHOOL_POLLUB) {
-          applyDiscoveredPollubPdfUris(scheduleResult.discoveredPollubPdfUris);
-        }
         const changes = notifyChanges ? describeChanges(previousEvents, nextEvents) : null;
         const syncedAt = new Date();
 
         eventsRef.current = nextEvents;
         setEvents(nextEvents);
-        if (nextSchool === SCHOOL_USOS) {
-          setUsosSecondFactorRequired(false);
-          updateUsosSecondFactorCode('');
-          scheduleUsosSemesterBackgroundRefresh(nextEmail.trim(), syncPassword);
-        }
         setLastSync(syncedAt);
         await writePlanCache(nextSchool, nextEmail.trim(), {
           events: nextEvents,
@@ -1559,10 +1030,7 @@ export default function App() {
         if (!isLoginAttemptCurrent(attemptId) || isLoginCancelledError(error)) {
           return false;
         }
-        if (error?.code === 'USOS_2FA_REQUIRED') {
-          setUsosSecondFactorRequired(true);
-        }
-        if (error?.code !== 'USOS_2FA_REQUIRED' && (showErrors || !eventsRef.current.length)) {
+        if (showErrors || !eventsRef.current.length) {
           const phase = loginPhaseRef.current ? `Etap: ${loginPhaseRef.current}\n\n` : '';
           Alert.alert('Nie udało się wczytać planu', `${phase}${error.message || 'Dane logowania są nieprawidłowe.'}`);
         }
@@ -1575,7 +1043,7 @@ export default function App() {
         updateLoginPhase('');
       }
     },
-    [applyAutoStudentProfile, cancelPendingEnrichFlush, email, enrichScheduleDetailsInBackground, extractPdfTextLocal, password, rememberPortalSession, scheduleUsosSemesterBackgroundRefresh, semesterRange, updateLoginPhase, updateUsosSecondFactorCode]
+    [applyAutoStudentProfile, cancelPendingEnrichFlush, email, enrichScheduleDetailsInBackground, password, rememberPortalSession, semesterRange, updateLoginPhase]
   );
 
   useEffect(() => {
@@ -1667,335 +1135,22 @@ export default function App() {
     }
   }, [email, password, rememberPortalSession]);
 
-  const openUniversityPortal = useCallback(async () => {
-    const activeSchool = school || resolveSchoolForLogin(email, password);
-    const profile = schoolProfiles[activeSchool] || schoolProfiles[SCHOOL_CDV];
-    const url = activeSchool === SCHOOL_USOS
-      ? portalUrlForLogin(email)
-      : activeSchool === SCHOOL_CDV
-        ? CDV_PORTAL_HOME_URL
-        : profile.portalUrl;
-
-    if (!url) return;
-
-    setSettingsOpen(false);
-
-    if (activeSchool === SCHOOL_CDV) {
-      openCdvPortal({ title: 'Twoja Uczelnia', url });
-      return;
-    }
-
-    if (activeSchool === SCHOOL_USOS) {
-      const stored = unpackUsosStoredCredential(password);
-      const loginEmail = email.trim();
-      const loginPassword = stored?.password || password;
-      const { autoLogin, url: startUrl } = resolveUsosPortalWebView({
-        email: loginEmail,
-        password: loginPassword,
-        portalUrl: url
-      });
-
-      if (!autoLogin) {
-        Linking.openURL(url).catch(() => {});
-        return;
-      }
-
-      setPortalWebView({
-        autoLogin: { ...autoLogin, school: SCHOOL_USOS },
-        title: 'Twoja Uczelnia',
-        url: startUrl
-      });
-      return;
-    }
-
-    if (activeSchool === SCHOOL_WSZIP) {
-      openMoodleInBrowser().catch(() => {});
-      return;
-    }
-
-    if (activeSchool === SCHOOL_WAT) {
-      Linking.openURL('https://www.wojsko-polskie.pl/wat/rozklady-zajec/').catch(() => {});
-      return;
-    }
-
-    if (activeSchool === SCHOOL_WSEIT) {
-      Linking.openURL('https://wd.wseit.pl/Logowanie').catch(() => {});
-      return;
-    }
-
-    const portalAutoLogin = buildPortalAutoLogin(activeSchool, email, password);
-
-    const cachedPortal = portalSessionCacheRef.current;
-    if (
-      cachedPortal?.school === activeSchool &&
-      cachedPortal.cookies?.length &&
-      Date.now() - cachedPortal.fetchedAt < PORTAL_SESSION_TTL_MS
-    ) {
-      setPortalWebView({
-        autoLogin: portalAutoLogin,
-        cookies: cachedPortal.cookies,
-        title: 'Twoja Uczelnia',
-        url
-      });
-      return;
-    }
-
-    if (!email.trim() || !password) {
-      Linking.openURL(url).catch(() => {});
-      return;
-    }
-
-    setPortalWebView({ autoLogin: portalAutoLogin, loading: true, title: 'Twoja Uczelnia', url });
-
-    try {
-      const portalSession = await loginOnly({
-        school: activeSchool,
-        email: email.trim(),
-        password,
-        onPhase: () => {}
-      });
-      rememberPortalSession(activeSchool, portalSession.cookies || []);
-      setPortalWebView({
-        autoLogin: portalAutoLogin,
-        cookies: portalSession.cookies || [],
-        title: 'Twoja Uczelnia',
-        url
-      });
-    } catch {
-      if (portalAutoLogin) {
-        setPortalWebView({
-          autoLogin: portalAutoLogin,
-          cookies: [],
-          title: 'Twoja Uczelnia',
-          url
-        });
-        return;
-      }
-      setPortalWebView(null);
-      Linking.openURL(url).catch(() => {});
-    }
-  }, [email, openCdvPortal, password, rememberPortalSession, school]);
+  const openUniversityPortal = useCallback(() => {
+    openCdvPortal({ title: 'Twoja Uczelnia', url: CDV_PORTAL_HOME_URL });
+  }, [openCdvPortal]);
 
   const openBlackboardPortal = useCallback(() => {
     openCdvPortal({ target: 'blackboard', title: 'Blackboard', url: buildCdvBlackboardUrl(email) });
   }, [email, openCdvPortal]);
 
-  function setWszipPdfSelection(uri) {
-    const nextUri = String(uri || '').trim();
-    wszipPdfUriRef.current = nextUri;
-    setWszipPdfUri(nextUri);
-    if (nextUri && school === SCHOOL_WSZIP) {
-      setPassword(packWszipStoredCredential(nextUri));
-    }
-  }
-
-  function setUsosIcalSelection(value) {
-    const nextUrl = String(value || '').trim();
-    usosIcalUrlRef.current = nextUrl;
-    setUsosIcalUrl(nextUrl);
-  }
-
-  function setPollubPdfSelection(uriOrUris) {
-    const nextUris = (Array.isArray(uriOrUris) ? uriOrUris : [uriOrUris])
-      .map((value) => String(value || '').trim())
-      .filter(Boolean);
-    pollubPdfUrisRef.current = nextUris;
-    setPollubPdfUris(nextUris);
-  }
-
-  function applyDiscoveredPollubPdfUris(discoveredUris) {
-    const incoming = (Array.isArray(discoveredUris) ? discoveredUris : [])
-      .map((value) => String(value || '').trim())
-      .filter(Boolean);
-    if (!incoming.length) return;
-
-    const merged = [...pollubPdfUrisRef.current];
-    for (const uri of incoming) {
-      if (!merged.includes(uri)) merged.push(uri);
-    }
-    setPollubPdfSelection(merged);
-    void persistPollubPdfs(merged);
-  }
-
-  async function persistPollubPdfs(nextUris) {
-    try {
-      const packed = packPollubStoredCredential(password, nextUris);
-      await secureSetItem(PASSWORD_KEY, packed, 'hasła');
-
-      const id = profileIdFor(email, SCHOOL_POLLUB);
-      const existing = savedProfiles.find((p) => p.id === id);
-      if (existing) {
-        await secureSetItem(profilePasswordKey(id), packed, 'hasła profilu');
-      }
-    } catch {
-      // Nie blokuj UX — PDF-y są już w stanie aplikacji.
-    }
-  }
-
-  async function persistWszipPdf(nextUri) {
-    try {
-      const packed = packWszipStoredCredential(nextUri);
-      await secureSetItem(PASSWORD_KEY, packed, 'hasła');
-
-      const id = profileIdFor(email, SCHOOL_WSZIP);
-      const existing = savedProfiles.find((p) => p.id === id);
-      if (existing) {
-        await secureSetItem(profilePasswordKey(id), packed, 'hasła profilu');
-      }
-      setPassword(packed);
-    } catch {
-      // Nie blokuj UX — PDF jest już w stanie aplikacji.
-    }
-  }
-
-  async function persistUsosCredentials(nextPassword = password, nextIcalUrl = usosIcalUrlRef.current, profileSnapshot = null) {
-    try {
-      const existing = unpackUsosStoredCredential(await secureGetItem(PASSWORD_KEY).catch(() => ''));
-      const packed = packUsosStoredCredential(
-        nextPassword,
-        nextIcalUrl,
-        profileSnapshot || existing?.profile || null
-      );
-      await secureSetItem(PASSWORD_KEY, packed, 'hasła');
-
-      const id = profileIdFor(email, SCHOOL_USOS);
-      const savedProfile = savedProfiles.find((p) => p.id === id);
-      if (savedProfile) {
-        await secureSetItem(profilePasswordKey(id), packed, 'hasła profilu');
-      }
-      setPassword(nextPassword);
-    } catch {
-      // Nie blokuj UX — iCal jest już w stanie aplikacji.
-    }
-  }
-
-  async function addUsosIcalSelection(value) {
-    const nextUrl = String(value || '').trim();
-    setUsosIcalSelection(nextUrl);
-    if (!nextUrl || !saved || school !== SCHOOL_USOS) return;
-
-    await persistUsosCredentials(password, nextUrl);
-    syncSemester({
-      showLoader: true,
-      notifyChanges: true,
-      showErrors: true,
-      forceStart: true
-    }).catch(() => {});
-  }
-
-  async function commitUsosIcalSelection() {
-    const nextUrl = usosIcalUrlRef.current;
-    if (nextUrl && !looksLikeUsosIcalUrl(nextUrl)) {
-      Alert.alert('Nieprawidłowy link iCal', 'Wklej prywatny link .ics z USOSweb zaczynający się od http lub https.');
-      return;
-    }
-    if (!saved || school !== SCHOOL_USOS) return;
-    await persistUsosCredentials(password, nextUrl);
-    if (nextUrl && looksLikeUsosIcalUrl(nextUrl)) {
-      syncSemester({
-        showLoader: true,
-        notifyChanges: true,
-        showErrors: true,
-        forceStart: true
-      }).catch(() => {});
-    }
-  }
-
-  function removeUsosIcalSelection() {
-    setUsosIcalSelection('');
-    if (saved && school === SCHOOL_USOS) {
-      persistUsosCredentials(password, '');
-      eventsRef.current = [];
-      setEvents([]);
-      setLastSync(null);
-    }
-  }
-
-  async function addWszipPdfSelection(uri) {
-    const nextUri = String(uri || '').trim();
-    if (!nextUri) return;
-    setWszipPdfSelection(nextUri);
-
-    if (!saved || school !== SCHOOL_WSZIP) return;
-
-    await persistWszipPdf(nextUri);
-    const ok = await syncSemester({
-      showLoader: true,
-      notifyChanges: true,
-      showErrors: true,
-      forceStart: true
-    });
-    if (ok) {
-      setWszipPdfManagerVisible(false);
-    }
-  }
-
-  async function removeWszipPdfSelection() {
-    setWszipPdfSelection('');
-    if (saved && school === SCHOOL_WSZIP) {
-      await persistWszipPdf('');
-      eventsRef.current = [];
-      setEvents([]);
-      setLastSync(null);
-      await writePlanCache(SCHOOL_WSZIP, email, {
-        events: [],
-        lastSync: '',
-        semesterStartKey: semesterRange.startKey,
-        semesterEndKey: semesterRange.endKey
-      });
-    }
-  }
-
-  async function addPollubPdfSelection(uri) {
-    const nextUri = String(uri || '').trim();
-    if (!nextUri) return;
-    const next = [...pollubPdfUrisRef.current, nextUri];
-    setPollubPdfSelection(next);
-
-    if (!saved || school !== SCHOOL_POLLUB) return;
-
-    await persistPollubPdfs(next);
-    const ok = await syncSemester({
-      showLoader: true,
-      notifyChanges: true,
-      showErrors: true,
-      forceStart: true
-    });
-    if (ok) {
-      setPollubPdfManagerVisible(false);
-    }
-  }
-
-  function removePollubPdfSelection(uri) {
-    const target = String(uri || '').trim();
-    if (!target) return;
-    const next = pollubPdfUrisRef.current.filter((item) => item !== target);
-    setPollubPdfSelection(next);
-    if (saved && school === SCHOOL_POLLUB) {
-      persistPollubPdfs(next);
-      syncSemester({ showLoader: true, notifyChanges: false, showErrors: true, forceStart: true }).catch(() => {});
-    }
-  }
-
   function updateEmail(value) {
     setEmail(value);
-    const nextSchool = resolveSchoolForLogin(value, password);
-    setSchool(nextSchool);
-    if (nextSchool === SCHOOL_WSZIP && password && !looksLikeWszipPdfCredential(password) && !looksLikeWszipStoredCredential(password)) {
-      setPassword('');
-    }
-    if (nextSchool === SCHOOL_WAT && password) {
-      setPassword('');
-    }
+    setSchool(resolveSchoolForLogin(value, password));
   }
 
   function updatePassword(value) {
     setPassword(value);
     setSchool(resolveSchoolForLogin(email, value));
-  }
-
-  function showUsosIcalHelp() {
-    setUsosHelpVisible(true);
   }
 
   if (!fontsLoaded) {
@@ -2008,7 +1163,7 @@ export default function App() {
   }
 
   async function restoreCredentialsAndCache() {
-    const [storedEmail, storedPassword, storedSchool, storedTheme, storedRemember, storedCardVisibility, profiles] =
+    const [storedEmail, storedPassword, , storedTheme, storedRemember, storedCardVisibility, profiles] =
       await Promise.all([
       secureGetItem(EMAIL_KEY, 'loginu').catch(() => null),
       secureGetItem(PASSWORD_KEY, 'hasła').catch(() => null),
@@ -2018,8 +1173,10 @@ export default function App() {
       AsyncStorage.getItem(CARD_VISIBILITY_KEY),
       readSavedProfiles()
     ]);
-    const nextSchool = storedSchool || resolveSchoolForLogin(storedEmail, storedPassword);
-    const cachedPlan = await readPlanCache(nextSchool, storedEmail);
+    const resolvedSchool = resolveSchoolForLogin(storedEmail, storedPassword);
+    const cachedPlan = resolvedSchool === SCHOOL_CDV
+      ? await readPlanCache(SCHOOL_CDV, storedEmail)
+      : null;
 
     setSavedProfiles(profiles);
     if (storedRemember === 'false') setRememberProfile(false);
@@ -2032,132 +1189,29 @@ export default function App() {
       themeProgress.setValue(storedTheme === 'dark' ? 1 : 0);
     }
     setCardVisibility(parseCardVisibility(storedCardVisibility));
-    setSchool(nextSchool);
-    if (cachedPlan?.events?.length) {
+    setSchool(SCHOOL_CDV);
+    if (resolvedSchool === SCHOOL_CDV && cachedPlan?.events?.length) {
       setEvents(cachedPlan.events);
       if (cachedPlan.lastSync) setLastSync(new Date(cachedPlan.lastSync));
-      if (nextSchool === SCHOOL_WSZIP) {
-        const focus = focusRangeForEvents(cachedPlan.events, new Date(), 'today');
-        if (focus) {
-          setAnchorDate(focus.anchorDate);
-          setMode(focus.mode);
-        }
-      }
     }
     if (storedEmail) setEmail(storedEmail);
-    if (storedPassword) {
+    if (storedPassword && resolvedSchool === SCHOOL_CDV) {
       setPassword(storedPassword);
-      if (looksLikeUsosStoredCredential(storedPassword) || looksLikeUsosIcalUrl(storedPassword)) {
-        const stored = unpackUsosStoredCredential(storedPassword);
-        if (stored?.password) setPassword(stored.password);
-        if (stored?.icalUrl) {
-          setUsosIcalSelection(stored.icalUrl);
-          setUsosIcalInputVisible(true);
-        }
-      }
-      if (looksLikeWszipPdfCredential(storedPassword) || looksLikeWszipStoredCredential(storedPassword)) {
-        const stored = unpackWszipStoredCredential(storedPassword);
-        setWszipPdfSelection(stored?.pdfUri || '');
-      }
-      if (looksLikePollubStoredCredential(storedPassword)) {
-        const stored = unpackPollubStoredCredential(storedPassword);
-        if (stored?.password) setPassword(stored.password);
-        if (stored?.pdfUris?.length) setPollubPdfSelection(stored.pdfUris);
-        else if (stored?.pdfUri) setPollubPdfSelection(stored.pdfUri);
-      }
-      if (looksLikeWatStoredCredential(storedPassword)) {
-        const stored = unpackWatStoredCredential(storedPassword);
-        if (stored?.password) setPassword(stored.password);
-        if (stored?.facultyId) setWatFacultyId(stored.facultyId);
-        if (stored?.groupCode) setWatSelectedGroup(stored.groupCode);
-        if (stored?.groupHref) setWatSelectedGroupHref(stored.groupHref);
-      }
-      if (looksLikeWseitStoredCredential(storedPassword)) {
-        const stored = unpackWseitStoredCredential(storedPassword);
-        if (stored?.password) setPassword(stored.password);
-        if (stored?.contextId) setWseitSelectedContextId(stored.contextId);
-        if (stored?.contextLabel) setWseitSelectedContextLabel(stored.contextLabel);
-      }
     }
-    if (storedEmail && storedPassword) {
+    if (storedEmail && storedPassword && resolvedSchool === SCHOOL_CDV) {
       setSaved(true);
-      await loadStudentProfileForAccount(nextSchool, storedEmail, storedPassword);
+      await loadStudentProfileForAccount(SCHOOL_CDV, storedEmail);
       if (storedRemember !== 'false') {
-        upsertSavedProfile({ login: storedEmail, password: storedPassword, school: nextSchool })
+        upsertSavedProfile({ login: storedEmail, password: storedPassword, school: SCHOOL_CDV })
           .then(setSavedProfiles)
           .catch(() => {});
       }
     }
   }
 
-  async function openWszipBrowser() {
-    try {
-      await openMoodleInBrowser();
-    } catch (error) {
-      Alert.alert('Nie udało się otworzyć Moodle', error.message || 'Spróbuj ponownie.');
-    }
-  }
-
-  async function pickWszipPdf() {
-    try {
-      const uri = await pickWszipPdfFile();
-      if (!uri) {
-        Alert.alert('Anulowano', 'Nie wybrano pliku PDF.');
-        return;
-      }
-      await addWszipPdfSelection(uri);
-    } catch (error) {
-      Alert.alert('Nie udało się wybrać pliku PDF', error.message || 'Spróbuj ponownie.');
-    }
-  }
-
-  async function pickPollubPdf() {
-    try {
-      const uri = await pickPollubPdfFile();
-      if (!uri) {
-        Alert.alert('Anulowano', 'Nie wybrano pliku PDF.');
-        return;
-      }
-      await addPollubPdfSelection(uri);
-    } catch (error) {
-      Alert.alert('Nie udało się wybrać pliku PDF', error.message || 'Spróbuj ponownie.');
-    }
-  }
-
-  function resolveWszipPdfCredential(overrideCredential = '') {
-    const overrideStored = unpackWszipStoredCredential(overrideCredential);
-    if (overrideStored?.pdfUri) {
-      return packWszipStoredCredential(overrideStored.pdfUri);
-    }
-    if (overrideCredential && looksLikeWszipPdfCredential(overrideCredential)) {
-      return packWszipStoredCredential(unpackWszipPdfCredential(overrideCredential));
-    }
-    if (wszipPdfUriRef.current) {
-      return packWszipStoredCredential(wszipPdfUriRef.current);
-    }
-    const stored = unpackWszipStoredCredential(password);
-    if (stored?.pdfUri) {
-      return packWszipStoredCredential(stored.pdfUri);
-    }
-    if (looksLikeWszipPdfCredential(password)) {
-      return packWszipStoredCredential(unpackWszipPdfCredential(password));
-    }
-    return '';
-  }
-
-  async function saveCredentialsAndRefresh(pdfOverride = '') {
+  async function saveCredentialsAndRefresh() {
     const loginValue = email.trim();
-    const credentialOverride = typeof pdfOverride === 'string' ? pdfOverride : '';
-    const resolvedSchool = resolveSchoolForLogin(loginValue, resolveWszipPdfCredential(credentialOverride) || password);
-    const nextSchool = loginSchool === SCHOOL_WSZIP ? SCHOOL_WSZIP : resolvedSchool;
-    const isUsos = nextSchool === SCHOOL_USOS;
-    const isWszip = nextSchool === SCHOOL_WSZIP;
-    const isPollub = nextSchool === SCHOOL_POLLUB;
-    const isWat = nextSchool === SCHOOL_WAT;
-    const isWseit = nextSchool === SCHOOL_WSEIT;
-    const isMoodleLogin = isWszip;
-    const activeCredential = resolveWszipPdfCredential(credentialOverride);
-    const usosSecondFactorCodeSnapshot = usosSecondFactorCodeRef.current.trim();
+    const nextSchool = resolveSchoolForLogin(loginValue, password);
 
     Keyboard.dismiss();
 
@@ -2174,149 +1228,65 @@ export default function App() {
       return;
     }
 
-    if (isPollub) {
-      if (!password) {
-        Alert.alert('Brak danych', 'Wpisz hasło do eHMS.');
-        return;
-      }
-      // PDF jest opcjonalny (WBiA pobierze plan bez PDF; inne wydziały mogą go wymagać dopiero przy pobieraniu planu).
-    } else if (isWat) {
-      if (!watSelectedGroup) {
-        setWatGroupPickerVisible(true);
-        return;
-      }
-    } else if (isWseit) {
-      if (!password) {
-        Alert.alert('Brak danych', 'Wpisz hasło do WSEIT (zwykle data urodzenia).');
-        return;
-      }
-      if (!wseitSelectedContextId) {
-        setWseitContextPickerVisible(true);
-        return;
-      }
-    } else if (!isMoodleLogin && !password) {
-      Alert.alert(
-        'Brak danych',
-        isUsos
-          ? 'Wpisz e-mail i hasło do USOSweb.'
-          : 'Wpisz uczelniany e-mail i hasło.'
-      );
+    if (!password) {
+      Alert.alert('Brak danych', 'Wpisz uczelniany e-mail i hasło.');
       return;
     }
 
-    const watSemester = watSemesterForDate();
-    const loginPassword = isWszip
-      ? activeCredential
-      : isUsos
-        ? packUsosStoredCredential(password, usosIcalUrlRef.current)
-        : isWat
-          ? packWatStoredCredential(password || '', {
-              facultyId: watFacultyId,
-              groupCode: watSelectedGroup,
-              groupHref: watSelectedGroupHref,
-              semesterFolder: watSemester.folder,
-              semesterTerm: watSemester.term
-            })
-          : isWseit
-            ? packWseitStoredCredential(password || '', {
-                contextId: wseitSelectedContextId,
-                contextLabel: wseitSelectedContextLabel
-              })
-            : password;
+    const loginPassword = password;
 
     syncInProgressRef.current = false;
     const attemptId = beginLoginAttempt();
     setLoading(true);
     setSyncing(false);
     setSchool(nextSchool);
-    updateLoginPhase(`Loguję: ${schoolProfiles[nextSchool]?.subtitle || 'uczelnia'}`);
+    updateLoginPhase(`Loguję: ${schoolProfileForLogin(nextSchool)?.subtitle || 'Collegium Da Vinci'}`);
 
-    let credentialsToSave = isWszip ? (activeCredential || packWszipStoredCredential('')) : loginPassword;
-    if (isPollub) {
-      credentialsToSave = packPollubStoredCredential(password, pollubPdfUrisRef.current);
-    }
+    let credentialsToSave = loginPassword;
 
     try {
-      if (isWszip && !activeCredential) {
-        eventsRef.current = [];
-        setEvents([]);
-        setLastSync(null);
-      } else {
-        const scheduleResult = normalizeScheduleFetchResult(await loginAndFetchSchedule({
-          school: nextSchool,
-          email: loginValue,
-          password: isPollub ? password : loginPassword,
-          startDateKey: semesterRange.startKey,
-          endDateKey: semesterRange.endKey,
-          onCredentials: (credentials) => {
-            credentialsToSave = credentials;
-          },
-          onPhase: updateLoginPhase,
-          onStudentProfile: (autoPatch) => applyAutoStudentProfile(nextSchool, loginValue, autoPatch),
-          extractPdfTextLocal,
-          usosSecondFactorCode: isUsos ? usosSecondFactorCodeSnapshot : '',
-          pollubPdfUri: pollubPdfUrisRef.current[0] || '',
-          pollubPdfUris: pollubPdfUrisRef.current,
-          watFacultyId,
-          watGroupCode: watSelectedGroup,
-          watGroupHref: watSelectedGroupHref,
-          wseitContextId: wseitSelectedContextId,
-          wseitContextLabel: wseitSelectedContextLabel
-        }));
-        if (!isLoginAttemptCurrent(attemptId)) return;
-        const previousEvents = eventsRef.current;
-        enrichSyncGenerationRef.current += 1;
-        const syncGeneration = enrichSyncGenerationRef.current;
-        cancelPendingEnrichFlush();
-        enrichInProgressRef.current = false;
+      const scheduleResult = normalizeScheduleFetchResult(await loginAndFetchSchedule({
+        school: nextSchool,
+        email: loginValue,
+        password: loginPassword,
+        startDateKey: semesterRange.startKey,
+        endDateKey: semesterRange.endKey,
+        onCredentials: (credentials) => {
+          credentialsToSave = credentials;
+        },
+        onPhase: updateLoginPhase,
+        onStudentProfile: (autoPatch) => applyAutoStudentProfile(nextSchool, loginValue, autoPatch)
+      }));
+      if (!isLoginAttemptCurrent(attemptId)) return;
+      const previousEvents = eventsRef.current;
+      enrichSyncGenerationRef.current += 1;
+      const syncGeneration = enrichSyncGenerationRef.current;
+      cancelPendingEnrichFlush();
+      enrichInProgressRef.current = false;
 
-        const nextEvents = mergeScheduleWithExisting(previousEvents, scheduleResult.events);
-        rememberPortalSession(nextSchool, scheduleResult.portalCookies);
-        if (nextSchool === SCHOOL_POLLUB) {
-          applyDiscoveredPollubPdfUris(scheduleResult.discoveredPollubPdfUris);
-          credentialsToSave = packPollubStoredCredential(password, pollubPdfUrisRef.current);
-        }
-        if (nextSchool === SCHOOL_WSEIT) {
-          credentialsToSave = packWseitStoredCredential(password, {
-            contextId: wseitSelectedContextId,
-            contextLabel: wseitSelectedContextLabel
-          });
-        }
-        const syncedAt = new Date();
+      const nextEvents = mergeScheduleWithExisting(previousEvents, scheduleResult.events);
+      rememberPortalSession(nextSchool, scheduleResult.portalCookies);
+      const syncedAt = new Date();
 
-        eventsRef.current = nextEvents;
-        setEvents(nextEvents);
-        setLastSync(syncedAt);
-        if (nextSchool === SCHOOL_WSZIP) {
-          const focus = focusRangeForEvents(nextEvents, anchorDateRef.current, modeRef.current);
-          if (focus) {
-            setAnchorDate(focus.anchorDate);
-            setMode(focus.mode);
-          }
-        }
-        await writePlanCache(nextSchool, loginValue, {
-          events: nextEvents,
-          lastSync: syncedAt.toISOString(),
-          semesterStartKey: semesterRange.startKey,
-          semesterEndKey: semesterRange.endKey
+      eventsRef.current = nextEvents;
+      setEvents(nextEvents);
+      setLastSync(syncedAt);
+      await writePlanCache(nextSchool, loginValue, {
+        events: nextEvents,
+        lastSync: syncedAt.toISOString(),
+        semesterStartKey: semesterRange.startKey,
+        semesterEndKey: semesterRange.endKey
+      });
+      if (scheduleResult.enrichDetails) {
+        void enrichScheduleDetailsInBackground({
+          activeSchool: nextSchool,
+          enrichDetails: scheduleResult.enrichDetails,
+          loginEmail: loginValue,
+          syncGeneration
         });
-        if (scheduleResult.enrichDetails) {
-          void enrichScheduleDetailsInBackground({
-            activeSchool: nextSchool,
-            enrichDetails: scheduleResult.enrichDetails,
-            loginEmail: loginValue,
-            syncGeneration
-          });
-        }
       }
     } catch (error) {
       if (!isLoginAttemptCurrent(attemptId) || isLoginCancelledError(error)) {
-        setLoading(false);
-        updateLoginPhase('');
-        return;
-      }
-      if (error?.code === 'USOS_2FA_REQUIRED') {
-        setUsosSecondFactorRequired(true);
         setLoading(false);
         updateLoginPhase('');
         return;
@@ -2329,37 +1299,11 @@ export default function App() {
     }
 
     setEmail(loginValue);
-    if (isPollub) {
-      setPassword(password);
-      setPollubPdfSelection(pollubPdfUrisRef.current);
-    } else if (isUsos) {
-      setPassword(password);
-      setUsosIcalSelection(usosIcalUrlRef.current);
-    } else {
-      setPassword(credentialsToSave);
-    }
-    if (looksLikeUsosStoredCredential(credentialsToSave) || looksLikeUsosIcalUrl(credentialsToSave)) {
-      const stored = unpackUsosStoredCredential(credentialsToSave);
-      if (stored?.password) setPassword(stored.password);
-      if (stored?.icalUrl) setUsosIcalSelection(stored.icalUrl);
-    }
-    if (looksLikeWszipPdfCredential(credentialsToSave) || looksLikeWszipStoredCredential(credentialsToSave)) {
-      const stored = unpackWszipStoredCredential(credentialsToSave);
-      setWszipPdfSelection(stored?.pdfUri || '');
-    }
-    if (looksLikePollubStoredCredential(credentialsToSave)) {
-      const stored = unpackPollubStoredCredential(credentialsToSave);
-      if (stored?.password) setPassword(stored.password);
-      if (stored?.pdfUris?.length) setPollubPdfSelection(stored.pdfUris);
-      else if (stored?.pdfUri) setPollubPdfSelection(stored.pdfUri);
-    }
+    setPassword(credentialsToSave);
     setSchool(nextSchool);
     skipImmediateSyncRef.current = true;
     setSaved(true);
-    await loadStudentProfileForAccount(nextSchool, loginValue, credentialsToSave);
-    if (isUsos) {
-      scheduleUsosSemesterBackgroundRefresh(loginValue, credentialsToSave);
-    }
+    await loadStudentProfileForAccount(nextSchool, loginValue);
 
     updateLoginPhase('Zapisuję profil na telefonie');
 
@@ -2434,73 +1378,18 @@ export default function App() {
 
     setEmail(profile.login);
     setPassword(profilePassword);
-    if (profile.school === SCHOOL_USOS && (looksLikeUsosStoredCredential(profilePassword) || looksLikeUsosIcalUrl(profilePassword))) {
-      const stored = unpackUsosStoredCredential(profilePassword);
-      if (stored?.password) setPassword(stored.password);
-      setUsosIcalSelection(stored?.icalUrl || '');
-      setUsosIcalInputVisible(Boolean(stored?.icalUrl));
-    }
-    if (profile.school === SCHOOL_WSZIP && (looksLikeWszipPdfCredential(profilePassword) || looksLikeWszipStoredCredential(profilePassword))) {
-      const stored = unpackWszipStoredCredential(profilePassword);
-      setWszipPdfSelection(stored?.pdfUri || '');
-    }
-    if (profile.school === SCHOOL_POLLUB && looksLikePollubStoredCredential(profilePassword)) {
-      const stored = unpackPollubStoredCredential(profilePassword);
-      if (stored?.password) setPassword(stored.password);
-      if (stored?.pdfUris?.length) setPollubPdfSelection(stored.pdfUris);
-      else if (stored?.pdfUri) setPollubPdfSelection(stored.pdfUri);
-    }
-    if (profile.school === SCHOOL_WAT && looksLikeWatStoredCredential(profilePassword)) {
-      const stored = unpackWatStoredCredential(profilePassword);
-      if (stored?.password) setPassword(stored.password);
-      if (stored?.facultyId) setWatFacultyId(stored.facultyId);
-      if (stored?.groupCode) setWatSelectedGroup(stored.groupCode);
-      if (stored?.groupHref) setWatSelectedGroupHref(stored.groupHref);
-    }
-    if (profile.school === SCHOOL_WSEIT && looksLikeWseitStoredCredential(profilePassword)) {
-      const stored = unpackWseitStoredCredential(profilePassword);
-      if (stored?.password) setPassword(stored.password);
-      if (stored?.contextId) setWseitSelectedContextId(stored.contextId);
-      if (stored?.contextLabel) setWseitSelectedContextLabel(stored.contextLabel);
-    }
     setSchool(profile.school);
-
-    if (profile.school === SCHOOL_POLLUB) {
-      const stored = unpackPollubStoredCredential(profilePassword);
-      const pollubPass = stored?.password || profilePassword;
-      if (!pollubPass) {
-        setProfileLoginLoadingProfile(null);
-        setLoading(false);
-        updateLoginPhase('');
-        Alert.alert(
-          'Profil POLLUB wymaga danych',
-          'Uzupełnij hasło eHMS.'
-        );
-        return;
-      }
-    }
 
     const cachedPlan = await readPlanCache(profile.school, profile.login);
     const hasCachedPlan = Boolean(cachedPlan?.events?.length);
 
-    if (profile.school === SCHOOL_WSZIP && !unpackWszipStoredCredential(profilePassword)?.pdfUri) {
-      eventsRef.current = [];
-      setEvents([]);
-      setLastSync(null);
-    } else if (hasCachedPlan) {
+    if (hasCachedPlan) {
       eventsRef.current = cachedPlan.events;
       setEvents(cachedPlan.events);
       if (cachedPlan.lastSync) setLastSync(new Date(cachedPlan.lastSync));
-      if (profile.school === SCHOOL_WSZIP) {
-        const focus = focusRangeForEvents(cachedPlan.events, new Date(), 'today');
-        if (focus) {
-          setAnchorDate(focus.anchorDate);
-          setMode(focus.mode);
-        }
-      }
     }
 
-    loadStudentProfileForAccount(profile.school, profile.login, profilePassword).catch(() => {});
+    loadStudentProfileForAccount(profile.school, profile.login).catch(() => {});
 
     if (hasCachedPlan) {
       setSaved(true);
@@ -2554,13 +1443,6 @@ export default function App() {
       setEmail('');
       setSavedProfiles([]);
     }
-    setWszipPdfSelection('');
-    setPollubPdfSelection('');
-    setUsosIcalSelection('');
-    setUsosIcalInputVisible(false);
-    setUsosIcalManagerVisible(false);
-    setUsosSecondFactorCode('');
-    setUsosSecondFactorRequired(false);
     setEvents([]);
     setLastSync(null);
     setMode('today');
@@ -2644,10 +1526,6 @@ export default function App() {
   const isTomorrowSelected = mode === 'today' && anchorKey === tomorrowKey;
 
   const days = daysBetween(range.start, range.end);
-  const pdfPlansSchoolLabel = school === SCHOOL_WSZIP ? 'WSZiP' : 'POLLUB';
-  const showPdfPlansManager = school === SCHOOL_WSZIP || school === SCHOOL_POLLUB;
-  const showIcalPlansManager = school === SCHOOL_USOS;
-  const icalPlansSchoolLabel = usosPlanLabelForLogin(email);
   const showBlackboardPortal = school === SCHOOL_CDV && /@edu\.cdv\.pl$/i.test(email.trim());
 
   return (
@@ -2665,20 +1543,11 @@ export default function App() {
             setLegalDocument('terms');
           }}
           onWipeAllData={confirmWipeAllLocalData}
-          onManageIcalPlans={() => setUsosIcalManagerVisible(true)}
-          onManagePdfPlans={() => {
-            if (school === SCHOOL_WSZIP) setWszipPdfManagerVisible(true);
-            else setPollubPdfManagerVisible(true);
-          }}
           onOpenBlackboardPortal={openBlackboardPortal}
           onOpenUniversityPortal={openUniversityPortal}
           onToggleCardVisibility={toggleCardVisibility}
           onToggleTheme={toggleTheme}
-          icalPlansSchoolLabel={icalPlansSchoolLabel}
-          pdfPlansSchoolLabel={pdfPlansSchoolLabel}
-          showIcalPlansManager={showIcalPlansManager}
           showBlackboardPortal={showBlackboardPortal}
-          showPdfPlansManager={showPdfPlansManager}
           studentProfile={studentProfile}
           theme={theme}
           themeName={themeName}
@@ -2869,299 +1738,37 @@ export default function App() {
                 style={[styles.input, focusedField === 'email' && styles.inputFocused]}
                 value={email}
               />
-              {isWszipLogin ? (
-                <Pressable style={styles.rememberRow} onPress={() => setRememberProfile((value) => !value)}>
-                  {({ pressed }) => (
-                    <>
-                      <View style={[styles.checkbox, rememberProfile && styles.checkboxActive, pressed && styles.checkboxPressed]}>
-                        {rememberProfile ? <Ionicons color={theme.checkboxCheck} name="checkmark" size={15} /> : null}
-                      </View>
-                      <Text style={styles.rememberText}>Zapamiętaj profil</Text>
-                    </>
-                  )}
+              <View style={styles.passwordRow}>
+                <TextInput
+                  cursorColor={theme.formFocus}
+                  onBlur={() => setFocusedField(null)}
+                  onChangeText={updatePassword}
+                  onFocus={() => setFocusedField('password')}
+                  placeholder="Hasło"
+                  placeholderTextColor={theme.mutedText}
+                  secureTextEntry={!passwordVisible}
+                  selectionColor={theme.formFocus}
+                  style={[styles.input, styles.passwordInput, focusedField === 'password' && styles.inputFocused]}
+                  value={password}
+                />
+                <Pressable
+                  accessibilityLabel={passwordVisible ? 'Ukryj hasło' : 'Pokaż hasło'}
+                  onPress={() => setPasswordVisible((visible) => !visible)}
+                  style={styles.passwordToggle}
+                >
+                  <Ionicons color={theme.passwordIcon} name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={22} />
                 </Pressable>
-              ) : null}
-              {isWszipLogin ? (
-                <View style={styles.wszipFlow}>
-                  <Text style={styles.wszipSessionHint}>
-                    Moodle WSZiP wymaga logowania Google w przeglądarce. Aplikacja nie może pobrać planu
-                    automatycznie i nie potrzebuje hasła. Zapisz profil teraz, a PDF planu możesz dodać od razu albo później w ustawieniach.
-                  </Text>
-                  <Pressable
-                    disabled={loading}
-                    onPress={openWszipBrowser}
-                    style={({ pressed }) => [
-                      styles.loginOptionalButton,
-                      pressed && styles.loginOptionalButtonPressed,
-                      loading && styles.primaryButtonDisabled
-                    ]}
-                  >
-                    <Text style={styles.loginOptionalButtonText}>Otwórz Moodle (Google)</Text>
-                  </Pressable>
-                  <Pressable
-                    disabled={loading}
-                    onPress={pickWszipPdf}
-                    style={({ pressed }) => [
-                      styles.loginOptionalButton,
-                      pressed && styles.loginOptionalButtonPressed,
-                      loading && styles.primaryButtonDisabled
-                    ]}
-                  >
-                    <Text style={styles.loginOptionalButtonText}>Dodaj PDF planu (opcjonalnie)</Text>
-                  </Pressable>
-                  {hasWszipPdf ? (
-                    <Text style={styles.wszipPdfSelected}>
-                      Wybrany plik: {wszipPdfLabel(wszipPdfUri)}
-                    </Text>
-                  ) : null}
-                  <Pressable
-                    accessibilityLabel="Instrukcja pobierania PDF z Moodle"
-                    onPress={() => setWszipHelpVisible(true)}
-                    style={styles.wszipHelpLink}
-                  >
-                    <Ionicons color={theme.formFocus} name="information-circle-outline" size={18} />
-                    <Text style={styles.wszipHelpLinkText}>Jak pobrać PDF z Moodle?</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <>
-                  {isPollubLogin ? (
-                    <Text style={styles.pollubSessionHint}>
-                      Zaloguj się do eHMS (login + hasło). PDF planu jest opcjonalny — możesz dodać go teraz lub później w ustawieniach.
-                    </Text>
-                  ) : null}
-                  {isWseitLogin ? (
-                    <Text style={styles.pollubSessionHint}>
-                      Zaloguj się do wd.wseit.pl (login + hasło, zwykle data urodzenia). Jeśli masz kilka kierunków, wybierz właściwy profil studiów.
-                    </Text>
-                  ) : null}
-                  {!isWatLogin ? (
-                    <View style={styles.passwordRow}>
-                      <TextInput
-                        cursorColor={theme.formFocus}
-                        onBlur={() => setFocusedField(null)}
-                        onChangeText={updatePassword}
-                        onFocus={() => setFocusedField('password')}
-                        placeholder={
-                          isUsosLogin
-                            ? 'Hasło do USOSweb'
-                            : isPollubLogin
-                              ? 'Hasło do eHMS'
-                              : isWseitLogin
-                                ? 'Hasło do WSEIT (np. data urodzenia)'
-                                : 'Hasło'
-                        }
-                        placeholderTextColor={theme.mutedText}
-                        secureTextEntry={!passwordVisible}
-                        selectionColor={theme.formFocus}
-                        style={[styles.input, styles.passwordInput, focusedField === 'password' && styles.inputFocused]}
-                        value={password}
-                      />
-                      <Pressable
-                        accessibilityLabel={passwordVisible ? 'Ukryj hasło' : 'Pokaż hasło'}
-                        onPress={() => setPasswordVisible((visible) => !visible)}
-                        style={styles.passwordToggle}
-                      >
-                        <Ionicons color={theme.passwordIcon} name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={22} />
-                      </Pressable>
+              </View>
+              <Pressable style={styles.rememberRow} onPress={() => setRememberProfile((value) => !value)}>
+                {({ pressed }) => (
+                  <>
+                    <View style={[styles.checkbox, rememberProfile && styles.checkboxActive, pressed && styles.checkboxPressed]}>
+                      {rememberProfile ? <Ionicons color={theme.checkboxCheck} name="checkmark" size={15} /> : null}
                     </View>
-                  ) : null}
-                  <Pressable style={styles.rememberRow} onPress={() => setRememberProfile((value) => !value)}>
-                    {({ pressed }) => (
-                      <>
-                        <View style={[styles.checkbox, rememberProfile && styles.checkboxActive, pressed && styles.checkboxPressed]}>
-                          {rememberProfile ? <Ionicons color={theme.checkboxCheck} name="checkmark" size={15} /> : null}
-                        </View>
-                        <Text style={styles.rememberText}>Zapamiętaj profil</Text>
-                      </>
-                    )}
-                  </Pressable>
-                  {isWatLogin ? (
-                    <View style={styles.watFlow}>
-                      <Text style={styles.pollubSessionHint}>
-                        Grupy i plany pobieramy ze strony WML (wml.wat.edu.pl/rozklady-zajec) — wystarczy e-mail i wybór grupy.
-                      </Text>
-                      {watSelectedGroup ? (
-                        <Text style={styles.watSelectedGroupText}>Wybrana grupa: {watSelectedGroup}</Text>
-                      ) : null}
-                      <Pressable
-                        disabled={loading}
-                        onPress={() => setWatGroupPickerVisible(true)}
-                        style={({ pressed }) => [
-                          styles.loginOptionalButton,
-                          pressed && styles.loginOptionalButtonPressed,
-                          loading && styles.primaryButtonDisabled
-                        ]}
-                      >
-                        <Text style={styles.loginOptionalButtonText}>
-                          {watSelectedGroup ? 'Zmień grupę' : 'Wybierz grupę'}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                  {isWseitLogin ? (
-                    <View style={styles.watFlow}>
-                      {wseitSelectedContextLabel ? (
-                        <Text style={styles.watSelectedGroupText}>
-                          Wybrany profil: {wseitSelectedContextLabel}
-                        </Text>
-                      ) : null}
-                      <Pressable
-                        disabled={loading || !password}
-                        onPress={() => setWseitContextPickerVisible(true)}
-                        style={({ pressed }) => [
-                          styles.loginOptionalButton,
-                          pressed && styles.loginOptionalButtonPressed,
-                          (loading || !password) && styles.primaryButtonDisabled
-                        ]}
-                      >
-                        <Text style={styles.loginOptionalButtonText}>
-                          {wseitSelectedContextId ? 'Zmień profil studiów' : 'Wybierz profil studiów'}
-                        </Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                  {isUsosLogin ? (
-                    <View style={styles.pollubFlow}>
-                      <Text style={styles.pollubSessionHint}>
-                        Aplikacja zaloguje się do USOSweb lokalnie i spróbuje automatycznie pobrać link iCal. Ręczne dodanie linku iCal to opcja zapasowa, gdy automatyczne logowanie nie zadziała.
-                      </Text>
-                      {usosSecondFactorRequired ? (
-                        <>
-                          <Text style={styles.pollubSessionHint}>
-                            Wpisz kod z e-mail lub SMS i kliknij „Zaloguj” ponownie — aplikacja dokończy logowanie (kod ważny kilka minut).
-                          </Text>
-                          <TextInput
-                            autoCapitalize="none"
-                            autoComplete="sms-otp"
-                            autoCorrect={false}
-                            blurOnSubmit
-                            cursorColor={theme.formFocus}
-                            editable={!loading}
-                            keyboardType="number-pad"
-                            onBlur={() => setFocusedField(null)}
-                            onChangeText={updateUsosSecondFactorCode}
-                            onFocus={() => setFocusedField('usosSecondFactor')}
-                            onSubmitEditing={saveCredentialsAndRefresh}
-                            placeholder="Kod e-mail / SMS z USOS"
-                            placeholderTextColor={theme.mutedText}
-                            returnKeyType="done"
-                            selectionColor={theme.formFocus}
-                            style={[styles.input, focusedField === 'usosSecondFactor' && styles.inputFocused]}
-                            textContentType="oneTimeCode"
-                            value={usosSecondFactorCode}
-                          />
-                        </>
-                      ) : null}
-                      <Pressable
-                        accessibilityLabel={usosIcalInputVisible ? 'Zwiń sekcję linku iCal' : 'Rozwiń sekcję linku iCal'}
-                        disabled={loading}
-                        onPress={() => setUsosIcalInputVisible((open) => !open)}
-                        style={[styles.usosIcalAccordionTrigger, loading && styles.primaryButtonDisabled]}
-                      >
-                        <Text
-                          style={[
-                            styles.loginOptionalButtonText,
-                            styles.loginOptionalButtonTextRow,
-                            usosIcalInputVisible && styles.loginOptionalButtonTextOpen
-                          ]}
-                        >
-                          Dodaj link iCal (.ics) z USOSweb
-                          {hasUsosIcal ? ' · dodano' : ''}
-                        </Text>
-                        <Ionicons
-                          color={usosIcalInputVisible ? theme.text : theme.mutedText}
-                          name={usosIcalInputVisible ? 'chevron-up' : 'chevron-down'}
-                          size={20}
-                        />
-                      </Pressable>
-                      {usosIcalInputVisible ? (
-                        <View style={styles.usosIcalAccordionBody}>
-                          <View style={styles.usosIcalBox}>
-                            <TextInput
-                              autoCapitalize="none"
-                              autoCorrect={false}
-                              cursorColor={theme.formFocus}
-                              keyboardType="url"
-                              onBlur={() => {
-                                setFocusedField(null);
-                                commitUsosIcalSelection();
-                              }}
-                              onChangeText={setUsosIcalSelection}
-                              onFocus={() => setFocusedField('usosIcal')}
-                              placeholder="Wklej prywatny link .ics z USOSweb"
-                              placeholderTextColor={theme.mutedText}
-                              selectionColor={theme.formFocus}
-                              style={[styles.input, styles.usosIcalInput, focusedField === 'usosIcal' && styles.inputFocused]}
-                              value={usosIcalUrl}
-                            />
-                            {hasUsosIcal ? (
-                              <Pressable
-                                accessibilityLabel="Usuń link iCal"
-                                hitSlop={8}
-                                onPress={removeUsosIcalSelection}
-                                style={styles.pollubPdfRemove}
-                              >
-                                <Ionicons color={theme.mutedText} name="close-circle-outline" size={20} />
-                              </Pressable>
-                            ) : null}
-                          </View>
-                          <Pressable
-                            accessibilityLabel="Jak pobrać link iCal z USOS"
-                            onPress={showUsosIcalHelp}
-                            style={styles.pollubHelpLink}
-                          >
-                            <Ionicons color={theme.formFocus} name="information-circle-outline" size={18} />
-                            <Text style={styles.pollubHelpLinkText}>Jak pobrać link iCal?</Text>
-                          </Pressable>
-                        </View>
-                      ) : null}
-                    </View>
-                  ) : null}
-                  {isPollubLogin ? (
-                    <View style={styles.pollubFlow}>
-                      <Pressable
-                        disabled={loading}
-                        onPress={pickPollubPdf}
-                        style={({ pressed }) => [
-                          styles.loginOptionalButton,
-                          pressed && styles.loginOptionalButtonPressed,
-                          loading && styles.primaryButtonDisabled
-                        ]}
-                      >
-                        <Text style={styles.loginOptionalButtonText}>Dodaj PDF planu (opcjonalnie)</Text>
-                      </Pressable>
-                      {hasPollubPdf ? (
-                        <View style={styles.pollubPdfList}>
-                          {pollubPdfUris.map((uri) => (
-                            <View key={uri} style={styles.pollubPdfRow}>
-                              <Text numberOfLines={1} style={styles.pollubPdfSelected}>
-                                {pollubPdfLabel(uri)}
-                              </Text>
-                              <Pressable
-                                accessibilityLabel="Usuń PDF"
-                                hitSlop={8}
-                                onPress={() => removePollubPdfSelection(uri)}
-                                style={styles.pollubPdfRemove}
-                              >
-                                <Ionicons color={theme.mutedText} name="close-circle-outline" size={20} />
-                              </Pressable>
-                            </View>
-                          ))}
-                        </View>
-                      ) : null}
-                      <Pressable
-                        accessibilityLabel="Instrukcja planu POLLUB"
-                        onPress={() => setPollubHelpVisible(true)}
-                        style={styles.pollubHelpLink}
-                      >
-                        <Ionicons color={theme.formFocus} name="information-circle-outline" size={18} />
-                        <Text style={styles.pollubHelpLinkText}>Jak pobrać plan i grupy?</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-                </>
-              )}
+                    <Text style={styles.rememberText}>Zapamiętaj profil</Text>
+                  </>
+                )}
+              </Pressable>
               <View style={styles.primaryButtonRow}>
                 <Pressable
                   accessibilityRole="button"
@@ -3259,87 +1866,12 @@ export default function App() {
         url={portalWebView?.url}
         visible={Boolean(portalWebView)}
       />
-      <UsosIcalHelpModal
-        onClose={() => setUsosHelpVisible(false)}
-        theme={theme}
-        visible={usosHelpVisible}
-      />
-      <UsosIcalManagerModal
-        icalUrl={usosIcalUrl}
-        onChangeIcalUrl={setUsosIcalSelection}
-        onClose={() => setUsosIcalManagerVisible(false)}
-        onHelp={showUsosIcalHelp}
-        onRemove={removeUsosIcalSelection}
-        onSave={async () => {
-          await commitUsosIcalSelection();
-          setUsosIcalManagerVisible(false);
-        }}
-        schoolLabel={icalPlansSchoolLabel}
-        theme={theme}
-        visible={usosIcalManagerVisible}
-      />
-      <WszipHelpModal
-        onClose={() => setWszipHelpVisible(false)}
-        theme={theme}
-        visible={wszipHelpVisible}
-      />
-      <PollubHelpModal
-        onClose={() => setPollubHelpVisible(false)}
-        theme={theme}
-        visible={pollubHelpVisible}
-      />
-      <WatGroupPickerModal
-        groupFilter={watGroupFilter}
-        groups={filteredWatGroups}
-        groupsError={watGroupsError}
-        groupsLoading={watGroupsLoading}
-        onClose={closeWatGroupPicker}
-        onConfirm={confirmWatGroupPicker}
-        onGroupFilterChange={setWatGroupFilter}
-        onSelectGroup={handleWatGroupSelect}
-        selectedGroup={watSelectedGroup}
-        theme={theme}
-        visible={watGroupPickerVisible && isWatLogin}
-      />
-      <WseitContextPickerModal
-        contextFilter={wseitContextFilter}
-        contexts={filteredWseitContexts}
-        contextsError={wseitContextsError}
-        contextsLoading={wseitContextsLoading}
-        onClose={closeWseitContextPicker}
-        onConfirm={confirmWseitContextPicker}
-        onContextFilterChange={setWseitContextFilter}
-        onSelectContext={handleWseitContextSelect}
-        selectedContextId={wseitSelectedContextId}
-        theme={theme}
-        visible={wseitContextPickerVisible && isWseitLogin}
-      />
-      <PollubPdfManagerModal
-        onAddPdf={pickPollubPdf}
-        onClose={() => setPollubPdfManagerVisible(false)}
-        onRemovePdf={removePollubPdfSelection}
-        pdfUris={pollubPdfUris}
-        theme={theme}
-        visible={pollubPdfManagerVisible}
-      />
-      <PollubPdfManagerModal
-        emptyText="Nie dodano jeszcze PDF planu WSZiP."
-        labelPdf={wszipPdfLabel}
-        onAddPdf={pickWszipPdf}
-        onClose={() => setWszipPdfManagerVisible(false)}
-        onRemovePdf={removeWszipPdfSelection}
-        pdfUris={wszipPdfUri ? [wszipPdfUri] : []}
-        subtitle="PDF jest opcjonalny i można go podmienić w dowolnym momencie"
-        theme={theme}
-        title="PDF planów (WSZiP)"
-        visible={wszipPdfManagerVisible}
-      />
     </SettingsShell>
   );
 }
 
 function DeleteSavedProfileModal({ login, onCancel, onConfirm, theme, visible }) {
-  const modalStyles = useMemo(() => createUsosIcalManagerStyles(theme), [theme]);
+  const modalStyles = useMemo(() => createConfirmModalStyles(theme), [theme]);
 
   return (
     <Modal animationType="fade" onRequestClose={onCancel} transparent visible={visible}>
@@ -3385,140 +1917,8 @@ function DeleteSavedProfileModal({ login, onCancel, onConfirm, theme, visible })
   );
 }
 
-function UsosIcalHelpModal({ onClose, theme, visible }) {
-  const modalStyles = useMemo(() => createUsosIcalHelpStyles(theme), [theme]);
-  return (
-    <Modal animationType="fade" onRequestClose={onClose} transparent visible={visible}>
-      <View style={modalStyles.scrim}>
-        <View style={modalStyles.panel}>
-          <View style={modalStyles.header}>
-            <LinearGradient
-              colors={BRAND_GRADIENT}
-              end={BRAND_GRADIENT_END}
-              start={BRAND_GRADIENT_START}
-              style={modalStyles.iconWrap}
-            >
-              <Ionicons color={BRAND_GRADIENT_TEXT} name="calendar-outline" size={22} />
-            </LinearGradient>
-            <View style={modalStyles.titleBlock}>
-              <Text style={modalStyles.title}>Link iCal z USOS</Text>
-              <Text style={modalStyles.subtitle}>Jak go pobrać i dodać</Text>
-            </View>
-            <Pressable accessibilityLabel="Zamknij instrukcję" hitSlop={8} onPress={onClose} style={modalStyles.closeButton}>
-              <Ionicons color={theme.text} name="close" size={22} />
-            </Pressable>
-          </View>
-
-          <View style={modalStyles.steps}>
-            {USOS_ICAL_HELP_STEPS.map((step, index) => (
-              <View key={step} style={modalStyles.stepRow}>
-                <LinearGradient
-                  colors={BRAND_GRADIENT}
-                  end={BRAND_GRADIENT_END}
-                  start={BRAND_GRADIENT_START}
-                  style={modalStyles.stepNumber}
-                >
-                  <Text style={modalStyles.stepNumberText}>{index + 1}</Text>
-                </LinearGradient>
-                <Text style={modalStyles.stepText}>{step}</Text>
-              </View>
-            ))}
-          </View>
-
-          <Pressable onPress={onClose} style={modalStyles.actionButton}>
-            <LinearGradient
-              colors={BRAND_GRADIENT}
-              end={BRAND_GRADIENT_END}
-              start={BRAND_GRADIENT_START}
-              style={modalStyles.actionGradient}
-            >
-              <Text style={modalStyles.actionText}>Rozumiem</Text>
-            </LinearGradient>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function UsosIcalManagerModal({
-  icalUrl,
-  onChangeIcalUrl,
-  onClose,
-  onHelp,
-  onRemove,
-  onSave,
-  schoolLabel,
-  theme,
-  visible
-}) {
-  const modalStyles = useMemo(() => createUsosIcalManagerStyles(theme), [theme]);
-
-  return (
-    <Modal animationType="fade" onRequestClose={onClose} transparent visible={visible}>
-      <View style={modalStyles.scrim}>
-        <View style={modalStyles.panel}>
-          <View style={modalStyles.header}>
-            <LinearGradient
-              colors={BRAND_GRADIENT}
-              end={BRAND_GRADIENT_END}
-              start={BRAND_GRADIENT_START}
-              style={modalStyles.iconWrap}
-            >
-              <Ionicons color={BRAND_GRADIENT_TEXT} name="calendar-outline" size={22} />
-            </LinearGradient>
-            <View style={modalStyles.titleBlock}>
-              <Text style={modalStyles.title}>iCal planów ({schoolLabel})</Text>
-              <Text style={modalStyles.subtitle}>Wklej prywatny link .ics z USOSweb</Text>
-            </View>
-            <Pressable accessibilityLabel="Zamknij" hitSlop={8} onPress={onClose} style={modalStyles.closeButton}>
-              <Ionicons color={theme.text} name="close" size={22} />
-            </Pressable>
-          </View>
-
-          <TextInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            cursorColor={theme.formFocus}
-            keyboardType="url"
-            onChangeText={onChangeIcalUrl}
-            placeholder="https://.../plan.ics"
-            placeholderTextColor={theme.mutedText}
-            selectionColor={theme.formFocus}
-            style={modalStyles.input}
-            value={icalUrl}
-          />
-
-          <Pressable onPress={onHelp} style={modalStyles.helpLink}>
-            <Ionicons color={theme.formFocus} name="information-circle-outline" size={18} />
-            <Text style={modalStyles.helpText}>Jak pobrać link iCal?</Text>
-          </Pressable>
-
-          <View style={modalStyles.footer}>
-            <Pressable onPress={onRemove} style={modalStyles.secondaryButton}>
-              <Text style={modalStyles.secondaryButtonText}>Usuń</Text>
-            </Pressable>
-            <Pressable onPress={onSave} style={modalStyles.primaryButton}>
-              <LinearGradient
-                colors={BRAND_GRADIENT}
-                end={BRAND_GRADIENT_END}
-                start={BRAND_GRADIENT_START}
-                style={modalStyles.primaryGradient}
-              >
-                <Text style={modalStyles.primaryText}>Zapisz</Text>
-              </LinearGradient>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 function UniversityPortalModal({ autoLogin, cookies, loading, onClose, theme, title = 'Twoja Uczelnia', url, visible }) {
-  const webViewRef = useRef(null);
   const modalStyles = useMemo(() => createUniversityPortalStyles(theme), [theme]);
-  const isUsosPortal = autoLogin?.school === SCHOOL_USOS;
   const source = useMemo(() => {
     const cookieHeader = buildCookieHeader(cookies);
     return {
@@ -3526,54 +1926,7 @@ function UniversityPortalModal({ autoLogin, cookies, loading, onClose, theme, ti
       ...(cookieHeader ? { headers: { Cookie: cookieHeader } } : {})
     };
   }, [cookies, url]);
-  const meritoAutofillScript = useMemo(() => {
-    if (autoLogin?.school !== SCHOOL_MERITO || !autoLogin.email || !autoLogin.password) return '';
-    return buildMeritoPortalAutofillScript(autoLogin.email, autoLogin.password);
-  }, [autoLogin]);
-  const pollubAutofillScript = useMemo(() => {
-    if (autoLogin?.school !== SCHOOL_POLLUB || !autoLogin.email || !autoLogin.password) return '';
-    return buildPollubPortalAutofillScript(autoLogin.email, autoLogin.password);
-  }, [autoLogin]);
-  const usosAutofillScript = useMemo(() => {
-    if (!isUsosPortal || !autoLogin?.login || !autoLogin?.password) return '';
-    return buildUsosPortalAutofillScript(autoLogin.login, autoLogin.password, url, autoLogin.portalUrl);
-  }, [autoLogin, isUsosPortal, url]);
-  const handlePortalNavigation = useCallback((navState) => {
-    const navUrl = navState?.url || '';
-    if (isUsosPortal && autoLogin?.login && autoLogin?.password) {
-      if (
-        shouldInjectUsosPortalAutofill(navUrl, autoLogin.portalUrl)
-        || (autoLogin.portalUrl && isUsosPortalHostUrl(navUrl, autoLogin.portalUrl))
-      ) {
-        webViewRef.current?.injectJavaScript(
-          buildUsosPortalAutofillScript(autoLogin.login, autoLogin.password, navUrl, autoLogin.portalUrl)
-        );
-      }
-      return;
-    }
-    if (autoLogin?.school === SCHOOL_MERITO && autoLogin.email && autoLogin.password && isMeritoLoginUrl(navUrl)) {
-      webViewRef.current?.injectJavaScript(
-        buildMeritoPortalAutofillScript(autoLogin.email, autoLogin.password)
-      );
-      return;
-    }
-    if (autoLogin?.school === SCHOOL_POLLUB && autoLogin.email && autoLogin.password && isPollubPortalUrl(navUrl)) {
-      webViewRef.current?.injectJavaScript(
-        buildPollubPortalAutofillScript(autoLogin.email, autoLogin.password)
-      );
-    }
-  }, [autoLogin, isUsosPortal]);
-  const handlePortalLoadEnd = useCallback((event) => {
-    if (!isUsosPortal || !autoLogin?.portalUrl) return;
-    const navUrl = event?.nativeEvent?.url || url;
-    if (isUsosPortalHostUrl(navUrl, autoLogin.portalUrl)) {
-      webViewRef.current?.injectJavaScript(buildPortalHandshakeScript(autoLogin.portalUrl));
-    }
-  }, [autoLogin, isUsosPortal, url]);
   const autoLoginScript = useMemo(() => {
-    if (isUsosPortal) return usosAutofillScript;
-    if (autoLogin?.school === SCHOOL_MERITO) return meritoAutofillScript;
-    if (autoLogin?.school === SCHOOL_POLLUB) return pollubAutofillScript;
     if (autoLogin?.school !== SCHOOL_CDV || !autoLogin.email || !autoLogin.password) return '';
 
     return `
@@ -3693,7 +2046,7 @@ function UniversityPortalModal({ autoLogin, cookies, loading, onClose, theme, ti
       })();
       true;
     `;
-  }, [autoLogin, isUsosPortal, meritoAutofillScript, usosAutofillScript]);
+  }, [autoLogin]);
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} visible={visible}>
@@ -3710,19 +2063,14 @@ function UniversityPortalModal({ autoLogin, cookies, loading, onClose, theme, ti
           </View>
         ) : url ? (
           <WebView
-            ref={webViewRef}
-            domStorageEnabled={isUsosPortal || undefined}
             injectedJavaScriptBeforeContentLoaded={autoLoginScript}
             injectedJavaScript={autoLoginScript}
-            onLoadEnd={handlePortalLoadEnd}
-            onNavigationStateChange={handlePortalNavigation}
             originWhitelist={['*']}
             sharedCookiesEnabled
             source={source}
             startInLoadingState
             style={modalStyles.webView}
             thirdPartyCookiesEnabled
-            userAgent={isUsosPortal ? usosWebViewUserAgent() : undefined}
           />
         ) : null}
       </SafeAreaView>
@@ -3839,7 +2187,7 @@ function StudioBrandFooter({ inline = false, styles }) {
       <View style={styles.studioBrandRow}>
         <Text style={styles.studioVersion}>v{APP_VERSION}</Text>
         <BrandGradientSurface style={styles.studioLogoWrap}>
-          <Image resizeMode="contain" source={LOGO_221} style={styles.studioLogo} />
+          <Image resizeMode="contain" source={APP_ICON} style={styles.studioLogo} />
         </BrandGradientSurface>
         <BrandGradientSurface style={styles.studioTextWrap}>
           <Text style={styles.studioTextMask}>studios</Text>
@@ -4217,10 +2565,7 @@ function SettingsMenuRow({ icon, iconColor, label, onPress, styles, trailing }) 
 
 function SettingsDrawer({
   cardVisibility,
-  icalPlansSchoolLabel,
   onLogout,
-  onManageIcalPlans,
-  onManagePdfPlans,
   onOpenBlackboardPortal,
   onOpenPrivacy,
   onOpenTerms,
@@ -4228,10 +2573,7 @@ function SettingsDrawer({
   onToggleCardVisibility,
   onToggleTheme,
   onWipeAllData,
-  pdfPlansSchoolLabel,
-  showIcalPlansManager,
   showBlackboardPortal,
-  showPdfPlansManager,
   studentProfile,
   theme,
   themeName
@@ -4304,28 +2646,6 @@ function SettingsDrawer({
             onPress={onOpenBlackboardPortal}
             styles={drawerStyles}
             trailing={<Ionicons color={theme.mutedText} name="open-outline" size={20} />}
-          />
-        ) : null}
-
-        {showIcalPlansManager ? (
-          <SettingsMenuRow
-            icon="calendar-outline"
-            iconColor={theme.text}
-            label={`iCal planów (${icalPlansSchoolLabel})`}
-            onPress={onManageIcalPlans}
-            styles={drawerStyles}
-            trailing={<Ionicons color={theme.mutedText} name="chevron-forward-outline" size={20} />}
-          />
-        ) : null}
-
-        {showPdfPlansManager ? (
-          <SettingsMenuRow
-            icon="document-text-outline"
-            iconColor={theme.text}
-            label={`PDF planów (${pdfPlansSchoolLabel})`}
-            onPress={onManagePdfPlans}
-            styles={drawerStyles}
-            trailing={<Ionicons color={theme.mutedText} name="chevron-forward-outline" size={20} />}
           />
         ) : null}
 
@@ -4765,194 +3085,6 @@ function createStyles(theme) {
       fontSize: 13,
       marginBottom: 8
     },
-    wszipFlow: {
-      gap: 12
-    },
-    wszipSessionHint: {
-      color: theme.mutedText,
-      fontFamily: FONT.body,
-      fontSize: 13,
-      lineHeight: 18
-    },
-    wszipPdfSelected: {
-      color: theme.text,
-      fontFamily: FONT.bodyBold,
-      fontSize: 13
-    },
-    wszipHelpLink: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 6,
-      marginTop: 2
-    },
-    wszipHelpLinkText: {
-      color: theme.formFocus,
-      fontFamily: FONT.body,
-      fontSize: 13
-    },
-    pollubSessionHint: {
-      color: theme.mutedText,
-      fontFamily: FONT.body,
-      fontSize: 13,
-      lineHeight: 18,
-      marginBottom: 10
-    },
-    pollubFlow: {
-      gap: 12
-    },
-    watFlow: {
-      gap: 12
-    },
-    watSectionLabel: {
-      color: theme.text,
-      fontFamily: FONT.bodyBold,
-      fontSize: 14
-    },
-    watFacultyRow: {
-      flexGrow: 0
-    },
-    watFacultyPill: {
-      marginRight: 8,
-      minWidth: 52
-    },
-    watFacultyPillText: {
-      color: theme.mutedText,
-      fontFamily: FONT.bodyBold,
-      fontSize: 13
-    },
-    watFacultyPillTextActive: {
-      color: theme.primaryButtonText
-    },
-    watGroupList: {
-      borderColor: theme.border,
-      borderRadius: 10,
-      borderWidth: 1,
-      maxHeight: 200
-    },
-    watGroupItem: {
-      borderBottomColor: theme.divider,
-      borderBottomWidth: 1,
-      paddingHorizontal: 12,
-      paddingVertical: 10
-    },
-    watGroupItemActive: {
-      backgroundColor: theme.surfaceBgActive
-    },
-    watGroupItemText: {
-      color: theme.text,
-      fontFamily: FONT.body,
-      fontSize: 14
-    },
-    watGroupItemTextActive: {
-      color: theme.accent,
-      fontFamily: FONT.bodyBold
-    },
-    watSelectedGroupText: {
-      color: theme.accent,
-      fontFamily: FONT.bodyBold,
-      fontSize: 13
-    },
-    watGroupsLoading: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 8
-    },
-    watGroupsError: {
-      color: '#cf2e2e',
-      fontFamily: FONT.body,
-      fontSize: 13
-    },
-    pollubPdfSelected: {
-      color: theme.mutedText,
-      fontFamily: FONT.body,
-      fontSize: 13
-    },
-    pollubPdfList: {
-      gap: 8
-    },
-    usosIcalBox: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 10
-    },
-    usosIcalAccordionTrigger: {
-      alignItems: 'center',
-      backgroundColor: 'transparent',
-      flexDirection: 'row',
-      gap: 10,
-      justifyContent: 'space-between',
-      minHeight: 48,
-      paddingHorizontal: 14,
-      paddingVertical: 12
-    },
-    loginOptionalButton: {
-      alignItems: 'center',
-      backgroundColor: 'transparent',
-      borderColor: theme.formMuted,
-      borderRadius: 8,
-      borderWidth: 1,
-      justifyContent: 'center',
-      minHeight: 48,
-      paddingHorizontal: 14,
-      paddingVertical: 12
-    },
-    loginOptionalButtonRow: {
-      flexDirection: 'row',
-      gap: 10,
-      justifyContent: 'space-between'
-    },
-    loginOptionalButtonPressed: {
-      backgroundColor: 'transparent',
-      borderColor: theme.formFocus,
-      borderWidth: 1.5
-    },
-    loginOptionalButtonOpen: {
-      backgroundColor: theme.screenBg,
-      borderColor: theme.formFocus,
-      borderWidth: 1.5
-    },
-    loginOptionalButtonOpenPressed: {
-      backgroundColor: theme.surfaceBgActive
-    },
-    loginOptionalButtonText: {
-      color: theme.mutedText,
-      fontFamily: FONT.bodyBold,
-      fontSize: 14,
-      textAlign: 'center'
-    },
-    loginOptionalButtonTextRow: {
-      flex: 1,
-      textAlign: 'left'
-    },
-    loginOptionalButtonTextOpen: {
-      color: theme.text
-    },
-    usosIcalAccordionBody: {
-      gap: 12
-    },
-    usosIcalInput: {
-      flex: 1,
-      marginBottom: 0
-    },
-    pollubPdfRow: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 10
-    },
-    pollubPdfRemove: {
-      padding: 2
-    },
-    pollubHelpLink: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 6,
-      marginTop: 2
-    },
-    pollubHelpLinkText: {
-      color: theme.formFocus,
-      fontFamily: FONT.body,
-      fontSize: 13
-    },
     secondaryButton: {
       alignItems: 'center',
       borderColor: theme.formFocus,
@@ -5092,7 +3224,6 @@ function createStyles(theme) {
       height: 34,
       maxHeight: 34,
       maxWidth: 104,
-      tintColor: PROFILE_LOGO_TINT,
       width: 104
     },
     profileTextBlock: {
@@ -5507,7 +3638,7 @@ function createUniversityPortalStyles(theme) {
   });
 }
 
-function createUsosIcalManagerStyles(theme) {
+function createConfirmModalStyles(theme) {
   return StyleSheet.create({
     closeButton: {
       alignItems: 'center',
@@ -5620,112 +3751,6 @@ function createUsosIcalManagerStyles(theme) {
     },
     titleBlock: {
       flex: 1
-    }
-  });
-}
-
-function createUsosIcalHelpStyles(theme) {
-  return StyleSheet.create({
-    actionButton: {
-      borderRadius: 24,
-      height: 48,
-      marginTop: 18,
-      overflow: 'hidden'
-    },
-    actionGradient: {
-      alignItems: 'center',
-      flex: 1,
-      justifyContent: 'center'
-    },
-    actionText: {
-      color: BRAND_GRADIENT_TEXT,
-      fontFamily: FONT.bodyBold,
-      fontSize: 16
-    },
-    closeButton: {
-      alignItems: 'center',
-      backgroundColor: theme.surfaceBg,
-      borderRadius: 20,
-      height: 40,
-      justifyContent: 'center',
-      width: 40
-    },
-    header: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 12,
-      marginBottom: 18
-    },
-    iconWrap: {
-      alignItems: 'center',
-      borderRadius: 22,
-      height: 44,
-      justifyContent: 'center',
-      width: 44
-    },
-    panel: {
-      backgroundColor: theme.panelBg,
-      borderColor: theme.border,
-      borderRadius: 8,
-      borderWidth: 1,
-      elevation: 16,
-      maxWidth: 440,
-      padding: 18,
-      shadowColor: theme.shadow,
-      shadowOffset: { width: 0, height: 12 },
-      shadowOpacity: 0.22,
-      shadowRadius: 24,
-      width: '100%'
-    },
-    scrim: {
-      alignItems: 'center',
-      backgroundColor: 'rgba(0, 0, 0, 0.58)',
-      flex: 1,
-      justifyContent: 'center',
-      padding: 18
-    },
-    stepNumber: {
-      alignItems: 'center',
-      borderRadius: 14,
-      height: 28,
-      justifyContent: 'center',
-      marginTop: 1,
-      width: 28
-    },
-    stepNumberText: {
-      color: BRAND_GRADIENT_TEXT,
-      fontFamily: FONT.bodyBold,
-      fontSize: 13
-    },
-    stepRow: {
-      alignItems: 'flex-start',
-      flexDirection: 'row',
-      gap: 12
-    },
-    stepText: {
-      color: theme.text,
-      flex: 1,
-      fontFamily: FONT.body,
-      fontSize: 14,
-      lineHeight: 20
-    },
-    steps: {
-      gap: 14
-    },
-    subtitle: {
-      color: theme.mutedText,
-      fontFamily: FONT.body,
-      fontSize: 13,
-      marginTop: 2
-    },
-    title: {
-      color: theme.text,
-      fontFamily: FONT.title,
-      fontSize: 20
-    },
-    titleBlock: {
-      flex: 1,
-      minWidth: 0
     }
   });
 }

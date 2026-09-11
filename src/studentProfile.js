@@ -1,7 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { WAT_FACULTIES } from './watConfig.js';
-
 export const STUDENT_PROFILE_STORAGE_PREFIX = 'comamdzis_student_profile_v1:';
 
 export const STUDENT_PROFILE_FIELDS = [
@@ -326,59 +324,4 @@ export function parseHtmlStudentProfile(html) {
     semester: extractProfileValue(text, ['Semestr studiów', 'Semestr', 'Rok / semestr (w roku akad.)']) || compactCdvInfo.semester || '',
     group: extractProfileValue(text, ['Grupa', 'Grupa dziekańska', 'Grupa laboratoryjna', 'Grupa ćwiczeniowa'])
   };
-}
-
-export function studentProfileFromPollub({ studyInfo, groups, login }) {
-  const info = studyInfo || {};
-  const semesterParts = [];
-  if (info.semesterLabel) semesterParts.push(info.semesterLabel);
-  if (info.academicYear) semesterParts.push(info.academicYear);
-  if (!info.semesterLabel && info.semesterInYear) semesterParts.push(`Semestr ${info.semesterInYear}`);
-
-  return {
-    fullName: info.fullName || '',
-    albumNumber: info.albumNumber || String(login || '').trim(),
-    university: info.university || 'Politechnika Lubelska',
-    program: info.program || '',
-    faculty: info.faculty || '',
-    degreeLevel: info.degreeLevel || info.studyKind || '',
-    studyMode: info.studySystem || info.studyMode || '',
-    semester: semesterParts.join(' · '),
-    group: (groups || []).join(', ')
-  };
-}
-
-export function studentProfileFromWseit({ login, contextLabel }) {
-  return {
-    albumNumber: String(login || '').trim(),
-    university: 'WSEIT',
-    program: String(contextLabel || '').trim()
-  };
-}
-
-export function studentProfileFromWat({ facultyId, groupCode, login, semesterTerm }) {
-  const faculty = WAT_FACULTIES.find((entry) => entry.id === facultyId);
-  return {
-    albumNumber: String(login || '').trim(),
-    faculty: faculty?.name || faculty?.shortName || '',
-    group: String(groupCode || '').trim(),
-    semester: semesterTerm ? `Semestr ${semesterTerm}` : ''
-  };
-}
-
-export function studentProfileFromLogin({ login, email }) {
-  const identity = String(login || email || '').trim();
-  const albumMatch = identity.match(/\b\d{4,8}\b/);
-  return {
-    albumNumber: albumMatch ? albumMatch[0] : identity.includes('@') ? '' : identity
-  };
-}
-
-export function studentProfileFromPollubLegacyMeta(meta) {
-  if (!meta) return {};
-  return studentProfileFromPollub({
-    studyInfo: meta.studyInfo,
-    groups: meta.groups,
-    login: ''
-  });
 }

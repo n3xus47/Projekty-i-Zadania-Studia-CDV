@@ -53,7 +53,6 @@ export function focusRangeForEvents(events, anchorDate, mode) {
   };
 }
 
-/** Dzień najbliższych zajęć od podanej daty (włącznie z tym dniem), tryb „Dziś”. */
 export function nearestUpcomingEventFocus(events, fromDate = new Date()) {
   if (!Array.isArray(events) || !events.length) return null;
 

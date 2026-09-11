@@ -131,21 +131,12 @@ assert.equal(
 }
 
 {
-  const previous = [sampleDetailedEvent({
-    type: 'MERITO:CLASS_SCHEDULE',
-    status: 'moveTo',
-    isCrossedOut: false,
-    statusLabel: ''
-  })];
-  const incoming = [sampleListEvent({
-    type: 'MERITO:CLASS_SCHEDULE',
-    status: 'moveTo',
-    isCrossedOut: false,
-    statusLabel: ''
-  })];
+  const previous = [sampleDetailedEvent({ id: 'keep-details' })];
+  const incoming = [sampleListEvent({ id: 'keep-details', title: 'Matematyka' })];
   const merged = mergeScheduleWithExisting(previous, incoming);
-  assert.equal(merged[0].isCrossedOut, true);
-  assert.equal(merged[0].statusLabel, 'Przeniesione');
+  assert.equal(merged[0].title, 'Matematyka');
+  assert.equal(merged[0].teacherNames[0], 'Jan Kowalski');
+  assert.equal(merged[0].roomName, '101');
 }
 
 console.log('test-event-merge: ok');

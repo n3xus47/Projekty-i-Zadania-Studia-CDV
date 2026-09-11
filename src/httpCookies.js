@@ -11,7 +11,6 @@ function hasNativeCookieModule() {
 }
 
 export function resetNativeCookieSession() {
-  // Login flows call this synchronously; a full native wipe is async and lives in clearNativeCookies().
 }
 
 export async function clearNativeCookies() {
@@ -20,7 +19,6 @@ export async function clearNativeCookies() {
   try {
     await manager.clearAll(true);
   } catch {
-    // ignore missing native cookie store
   }
 }
 
@@ -38,19 +36,16 @@ export function wrapFetchNetworkError(error, url) {
   try {
     host = new URL(url).hostname;
   } catch {
-    // keep raw url fragment
   }
 
   if (isReactNative()) {
     return new Error(
-      `USOS: nie udało się otworzyć ${host} z aplikacji mobilnej.`
-        + ' Jeśli w przeglądarce telefonu ta strona działa, użyj „Dodaj link iCal”'
-        + ' i wklej link skopiowany z USOSweb po zalogowaniu.'
+      `Nie udało się otworzyć ${host} z aplikacji mobilnej. Sprawdź internet i spróbuj ponownie.`
     );
   }
 
   return new Error(
-    `USOS: błąd połączenia z ${host}. Sprawdź internet i spróbuj ponownie.`
+    `Błąd połączenia z ${host}. Sprawdź internet i spróbuj ponownie.`
   );
 }
 
@@ -62,7 +57,6 @@ export function readResponseHeader(headers, name) {
   return headers[name] || headers[name.toLowerCase()] || '';
 }
 
-/** All Set-Cookie lines from a response (RN 0.72+ getSetCookie or merged header). */
 export function readAllSetCookieHeaders(headers) {
   if (!headers) return [];
 
@@ -100,7 +94,6 @@ function getNativeCookieManager() {
     return null;
   }
   try {
-    // eslint-disable-next-line global-require
     nativeCookieManager = require('@react-native-cookies/cookies');
   } catch {
     nativeCookieManager = null;
@@ -141,7 +134,6 @@ export async function pullNativeCookiesToJar(url, jar) {
       if (cookie?.name) jar.set(cookie.name, cookie.value);
     });
   } catch {
-    // ignore
   }
 }
 
@@ -164,10 +156,6 @@ async function saveSetCookieLinesToNative(url, cookieLines) {
   );
 }
 
-/**
- * After each HTTP response (especially 302): parse Set-Cookie into the jar
- * and mirror into the native cookie store on mobile.
- */
 export async function saveCookiesFromResponse(jar, headers, url) {
   const cookieLines = readAllSetCookieHeaders(headers);
   saveSetCookieLinesToJar(jar, cookieLines);
@@ -178,9 +166,6 @@ export async function saveCookiesFromResponse(jar, headers, url) {
   await pullNativeCookiesToJar(url, jar);
 }
 
-/**
- * Before each request: attach every known cookie manually (never rely on fetch auto-redirect).
- */
 export async function prepareCookieRequest(url, jar, headers) {
   if (usesNativeCookieStore()) {
     await pushJarToNativeCookies(url, jar);
