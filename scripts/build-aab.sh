@@ -47,6 +47,12 @@ if [[ ! -d "$ROOT/android" ]]; then
   CI=1 npx expo prebuild --platform android --non-interactive
 fi
 
+# Gradle 9 removed jcenter(); @react-native-cookies/cookies@6.2.1 still calls it.
+COOKIES_GRADLE="$ROOT/node_modules/@react-native-cookies/cookies/android/build.gradle"
+if [[ -f "$COOKIES_GRADLE" ]]; then
+  sed -i 's/jcenter()/mavenCentral()/g' "$COOKIES_GRADLE"
+fi
+
 cd "$ROOT/android"
 ./gradlew bundleRelease --no-daemon \
   "-Pandroid.injected.signing.store.file=$STORE_FILE" \

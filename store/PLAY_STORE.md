@@ -1,7 +1,7 @@
 # Google Play — CDV Dziś
 
 Pakiet: `pl.cdv.dzis`  
-Wersja: `1.0.1` (versionCode 2)
+Wersja: `1.0.2` (versionCode 3)
 
 Publikację w sklepie robić **dopiero po umowie z Collegium Da Vinci** i po wymianie tekstów „do czasu umowy”. Konto deweloperskie: uczelnia albo autorzy — zależnie od wariantu z oferty.
 
