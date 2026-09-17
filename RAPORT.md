@@ -44,8 +44,8 @@ Zbiór danych `online_shoppers_intention.csv` zawiera informacje o sesjach użyt
 ### Zastosowane transformacje
 
 1. **Obsługa brakujących wartości**: 
-   - Strategia: drop/mean/median/mode
-   - Uzasadnienie: Usuwamy, gdy braki stanowią margines danych np.3%, Średnia, gdy nie ma outliners, Mediana na numerach, gdy mamy wartości odstające, Dominanta dla danych kategorycznych 
+   - Strategia: drop/mean
+   - Uzasadnienie: Usuwamy, gdy braki stanowią margines danych np.3%, Średnia, gdy nie ma outliners. 
 
 2. **Kodowanie zmiennych kategorycznych**:
    - Metoda: Label Encoding
