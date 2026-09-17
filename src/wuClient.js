@@ -7,22 +7,34 @@ const LOGIN_URL = `${BASE_URL}/?login=1`;
 const MAIN_URL = `${BASE_URL}/?page=Main`;
 const PLAN_URL = `${BASE_URL}/?page=Plan`;
 const REQUEST_TIMEOUT_MS = 45000;
+const MAX_REDIRECTS = 8;
+const WU_ERROR_SESSION_DENIED = 56;
 const DETAIL_FETCH_CONCURRENCY = 20;
 const BROWSER_USER_AGENT =
   'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
 
 async function fetchWithTimeout(url, options = {}) {
-  let timeout = null;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeout = setTimeout(() => {
-      reject(new Error('WU CDV nie odpowiada. Sprawdz internet i sprobuj ponownie.'));
-    }, REQUEST_TIMEOUT_MS);
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const { signal: outerSignal, ...rest } = options;
+
+  if (outerSignal) {
+    if (outerSignal.aborted) {
+      controller.abort();
+    } else {
+      outerSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+  }
 
   try {
-    return await Promise.race([fetch(url, options), timeoutPromise]);
+    return await fetch(url, { ...rest, signal: controller.signal });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('WU CDV nie odpowiada. Sprawdz internet i sprobuj ponownie.');
+    }
+    throw error;
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timeoutId);
   }
 }
 
@@ -90,7 +102,7 @@ async function followRedirects(url, jar) {
   let currentUrl = url;
   let response = null;
 
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  for (let attempt = 0; attempt < MAX_REDIRECTS; attempt += 1) {
     response = await fetchWithCookies(currentUrl, { redirect: 'manual' }, jar);
     if (!isRedirect(response.status)) return response;
 
@@ -104,7 +116,11 @@ async function followRedirects(url, jar) {
 
 function hasLoginForm(html) {
   const source = String(html || '');
-  return /name=["']login["']/i.test(source) && /name=["']password["']/i.test(source);
+  // Prefer tag-scoped checks over bare attribute matches (comments/scripts can contain the same words).
+  return (
+    /<input\b[^>]*\bname=["']login["']/i.test(source) &&
+    /<input\b[^>]*\bname=["']password["']/i.test(source)
+  );
 }
 
 function isLoginFailure(html) {
@@ -115,9 +131,18 @@ function isLoginFailure(html) {
   );
 }
 
+function hasLogoutControl(html) {
+  const source = String(html || '');
+  return (
+    /<(a|button)\b[^>]*>[^<]*wyloguj/i.test(source) ||
+    /<(a|button)\b[^>]*>[^<]*logout/i.test(source) ||
+    /<a\b[^>]*\bhref=["'][^"']*logout[^"']*["']/i.test(source)
+  );
+}
+
 function isLoggedIn(html, jar) {
   const source = String(html || '');
-  if (/wyloguj/i.test(source) || /logout/i.test(source)) return true;
+  if (hasLogoutControl(source)) return true;
   if (jar.has('WU_PHPSESSID') && !hasLoginForm(source)) return true;
   return false;
 }
@@ -133,7 +158,7 @@ async function readJsonResponse(response, fallbackMessage) {
   }
 
   if (!response.ok || !data) {
-    if (data?.error_code === 56) {
+    if (data?.error_code === WU_ERROR_SESSION_DENIED) {
       throw new Error('CDV przyjelo logowanie, ale sesja nie pozwala pobrac planu. Sprobuj wylogowac sie i zalogowac ponownie.');
     }
     throw new Error(fallbackMessage);
@@ -300,7 +325,7 @@ export async function fetchScheduleList(startDateKey, endDateKey, jar = new Map(
 
   const data = await readJsonResponse(response, 'CDV nie zwrocilo poprawnej odpowiedzi z planem. Sprobuj ponownie za chwile.');
   if (data.error_code !== 0) {
-    if (data.error_code === 56) {
+    if (data.error_code === WU_ERROR_SESSION_DENIED) {
       throw new Error('CDV przyjelo logowanie, ale sesja nie pozwala pobrac planu. Sprobuj wylogowac sie i zalogowac ponownie.');
     }
     throw new Error('WU zwrocila blad podczas pobierania planu.');
