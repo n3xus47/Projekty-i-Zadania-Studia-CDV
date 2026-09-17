@@ -1,6 +1,9 @@
 """
 Klasy OOP
 """
+from typing import Any
+
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -68,7 +71,7 @@ class DataLoader:
         
         info = {
             "shape": self.data.shape,
-            "columns": list(self.data.columns),
+            "columns": list[Any](self.data.columns),
             "dtypes": self.data.dtypes.to_dict(),
             "missing_values": self.data.isnull().sum().to_dict(),
             "memory_usage": self.data.memory_usage(deep=True).sum()
