@@ -46,3 +46,8 @@ Thumbs.db
 models/
 results/
 .venv/
+.venv/
+venv/
+__pycache__/
+.idea/
+*.pyc
