@@ -1,1 +1,0 @@
-/home/n3xus/AGENTS.md
