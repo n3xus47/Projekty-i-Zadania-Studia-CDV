@@ -7,10 +7,10 @@ Monorepo zbierające zadania i projekty związane ze studiami w Collegium Da Vin
 | Katalog | Repozytorium źródłowe |
 | --- | --- |
 | `01-uczenie-maszynowe-zadania` | [ZadaniaUczenieMaszynowe](./01-uczenie-maszynowe-zadania) — oryginalne repozytorium usunięte |
-| `02-bezpieczenstwo-systemow-informatycznych` | [n3xus47/BezpCDV](https://github.com/n3xus47/BezpCDV) |
-| `03-uczenie-maszynowe-cdv` | [n3xus47/UczenieMaszynoweCDV](https://github.com/n3xus47/UczenieMaszynoweCDV) |
-| `04-predicting-purchase-intentions` | [n3xus47/ML-in-python-CDV-Predicting-Purchase-Intentions](https://github.com/n3xus47/ML-in-python-CDV-Predicting-Purchase-Intentions) |
-| `05-systemy-bazodanowe` | [221Studios/Database-Systems-CDV](https://github.com/221Studios/Database-Systems-CDV) |
-| `06-cs50p` | [n3xus47/cs50p](https://github.com/n3xus47/cs50p) |
+| `02-bezpieczenstwo-systemow-informatycznych` | [BezpCDV](./02-bezpieczenstwo-systemow-informatycznych) — oryginalne repozytorium usunięte |
+| `03-uczenie-maszynowe-cdv` | [UczenieMaszynoweCDV](./03-uczenie-maszynowe-cdv) — oryginalne repozytorium usunięte |
+| `04-predicting-purchase-intentions` | [ML-in-python-CDV-Predicting-Purchase-Intentions](./04-predicting-purchase-intentions) — oryginalne repozytorium usunięte |
+| `05-systemy-bazodanowe` | [Database-Systems-CDV](./05-systemy-bazodanowe) — oryginalne repozytorium usunięte |
+| `06-cs50p` | [cs50p](./06-cs50p) — oryginalne repozytorium usunięte |
 
 Import zachowuje historię commitów repozytoriów źródłowych.
