@@ -1,0 +1,59 @@
+# DataGrip / IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+dataSources/
+dataSources.local.xml
+dynamic.xml
+dbnavigator.xml
+
+# PostgreSQL
+*.log
+*.sql~
+*.backup
+*.dump
+*.pg_dump
+*.pg_restore
+
+# Tymczasowe pliki SQL
+*.tmp
+*.temp
+*~
+
+# Systemowe pliki
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Pliki środowiskowe
+.env
+.env.local
+*.env
+
+# Pliki backup
+*.bak
+*.old
+*.orig
+
+# Logi
+*.log
+logs/
+*.log.*
+
+# Pliki kompresji (jeśli będą)
+*.zip
+*.tar.gz
+*.rar
+
+# Pliki wynikowe / eksporty
+exports/
+output/
+*.csv
+*.xlsx
+*.xls
