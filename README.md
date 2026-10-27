@@ -1,16 +1,12 @@
-# Zadania Studia CDV
+# Projekty i Zadania Studia CDV
 
-Monorepo zbierające zadania i projekty związane ze studiami w Collegium Da Vinci. Każdy projekt znajduje się w osobnym katalogu i zachowuje historię commitów swojego repozytorium źródłowego.
+Zbiór zawiera sześć projektów i zestawów zadań z toku studiów w Collegium Da Vinci. Opis każdego projektu znajduje się w jego pliku `DOKUMENTACJA.md`.
 
 ## Projekty
 
-| Katalog | Repozytorium źródłowe |
-| --- | --- |
-| `01-uczenie-maszynowe-zadania` | [ZadaniaUczenieMaszynowe](./01-uczenie-maszynowe-zadania) — oryginalne repozytorium usunięte |
-| `02-bezpieczenstwo-systemow-informatycznych` | [BezpCDV](./02-bezpieczenstwo-systemow-informatycznych) — oryginalne repozytorium usunięte |
-| `03-uczenie-maszynowe-cdv` | [UczenieMaszynoweCDV](./03-uczenie-maszynowe-cdv) — oryginalne repozytorium usunięte |
-| `04-predicting-purchase-intentions` | [ML-in-python-CDV-Predicting-Purchase-Intentions](./04-predicting-purchase-intentions) — oryginalne repozytorium usunięte |
-| `05-systemy-bazodanowe` | [Database-Systems-CDV](./05-systemy-bazodanowe) — oryginalne repozytorium usunięte |
-| `06-cs50p` | [cs50p](./06-cs50p) — oryginalne repozytorium usunięte |
-
-Import zachowuje historię commitów repozytoriów źródłowych.
+1. [Podstawy uczenia maszynowego](./01-uczenie-maszynowe-zadania/)
+2. [Bezpieczeństwo systemów informatycznych](./02-bezpieczenstwo-systemow-informatycznych/)
+3. [Uczenie maszynowe — projekt CDV](./03-uczenie-maszynowe-cdv/)
+4. [Przewidywanie intencji zakupowych](./04-predicting-purchase-intentions/)
+5. [System bazodanowy DataFlow WMS](./05-systemy-bazodanowe/)
+6. [CS50P — ćwiczenia z Pythona](./06-cs50p/)
